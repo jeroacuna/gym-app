@@ -36,6 +36,8 @@ function agruparPorDia(ejercicios) {
 export default function Dashboard({ usuario }) {
   const [rutina, setRutina] = useState(null)
   const [ejercicios, setEjercicios] = useState([])
+  const [misServicios, setMisServicios] = useState([]) // servicios que incluye el plan del socio
+  const [servicioElegido, setServicioElegido] = useState(null)
   const [fechaElegida, setFechaElegida] = useState(hoyISO())
   const [horarios, setHorarios] = useState([])
   const [misReservas, setMisReservas] = useState([])
@@ -50,23 +52,39 @@ export default function Dashboard({ usuario }) {
         setEjercicios(data.ejercicios)
       })
 
+    fetch('/api/mi-plan')
+      .then((r) => r.json())
+      .then((data) => {
+        const servicios = data.servicios || []
+        setMisServicios(servicios)
+        if (servicios.length > 0) setServicioElegido(servicios[0].id)
+      })
+
     cargarMisReservas()
   }, [])
 
   useEffect(() => {
+    if (!servicioElegido) return
     setCargandoHorarios(true)
-    fetch(`/api/horarios-disponibles?fecha=${fechaElegida}`)
+    fetch(`/api/horarios-disponibles?fecha=${fechaElegida}&servicio_id=${servicioElegido}`)
       .then((r) => r.json())
       .then((data) => {
         setHorarios(data.horarios || [])
         setCargandoHorarios(false)
       })
-  }, [fechaElegida])
+  }, [fechaElegida, servicioElegido])
 
   function cargarMisReservas() {
     fetch('/api/reservas')
       .then((r) => r.json())
       .then((data) => setMisReservas(data.reservas || []))
+  }
+
+  function recargarHorarios() {
+    if (!servicioElegido) return
+    fetch(`/api/horarios-disponibles?fecha=${fechaElegida}&servicio_id=${servicioElegido}`)
+      .then((r) => r.json())
+      .then((data) => setHorarios(data.horarios || []))
   }
 
   async function reservar(horarioId) {
@@ -89,9 +107,7 @@ export default function Dashboard({ usuario }) {
       setMensaje('✅ Reserva confirmada')
     }
 
-    fetch(`/api/horarios-disponibles?fecha=${fechaElegida}`)
-      .then((r) => r.json())
-      .then((data) => setHorarios(data.horarios || []))
+    recargarHorarios()
     cargarMisReservas()
   }
 
@@ -102,10 +118,10 @@ export default function Dashboard({ usuario }) {
       body: JSON.stringify({ reserva_id: reservaId }),
     })
     cargarMisReservas()
-    fetch(`/api/horarios-disponibles?fecha=${fechaElegida}`)
-      .then((r) => r.json())
-      .then((data) => setHorarios(data.horarios || []))
+    recargarHorarios()
   }
+
+  const tieneGimnasio = misServicios.some((s) => s.nombre === 'Gimnasio')
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -129,103 +145,131 @@ export default function Dashboard({ usuario }) {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
-        {/* ------------------ RUTINA ------------------ */}
-        <Card>
-          <Eyebrow>Plan de entrenamiento</Eyebrow>
-          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4">Tu rutina</h2>
+        {/* ------------------ RUTINA (solo si el plan incluye Gimnasio) ------------------ */}
+        {tieneGimnasio && (
+          <Card>
+            <Eyebrow>Plan de entrenamiento</Eyebrow>
+            <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4">Tu rutina</h2>
 
-          {!rutina && (
-            <p className="text-sm text-concrete">Todavía no tenés una rutina cargada. Consultá en el gimnasio.</p>
-          )}
-          {rutina && ejercicios.length === 0 && (
-            <p className="text-sm text-concrete">Tu rutina "{rutina.nombre}" todavía no tiene ejercicios cargados.</p>
-          )}
-          {rutina && ejercicios.length > 0 && (
-            <div>
-              <p className="text-sm text-concrete mb-4">{rutina.nombre}</p>
-              <div className="flex flex-col gap-4">
-                {DIAS_ORDEN.filter((dia) => agruparPorDia(ejercicios)[dia]).map((dia) => (
-                  <div key={dia}>
-                    <span className="font-mono text-xs text-brand uppercase tracking-widest font-semibold">
-                      {dia}
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                      {agruparPorDia(ejercicios)[dia].map((e) => (
-                        <div
-                          key={e.id}
-                          className="bg-ink text-white rounded-xl p-4 flex items-center justify-between gap-3"
-                        >
-                          <span className="font-semibold text-sm leading-tight">{e.nombre}</span>
-                          <div className="text-right shrink-0">
-                            <span className="font-display font-semibold text-lg text-brand">
-                              {e.series}×{e.repeticiones}
-                            </span>
-                            {e.peso_sugerido && (
-                              <span className="block font-mono text-xs text-white/80 font-semibold mt-0.5">{e.peso_sugerido}</span>
-                            )}
+            {!rutina && (
+              <p className="text-sm text-concrete">Todavía no tenés una rutina cargada. Consultá en el gimnasio.</p>
+            )}
+            {rutina && ejercicios.length === 0 && (
+              <p className="text-sm text-concrete">Tu rutina "{rutina.nombre}" todavía no tiene ejercicios cargados.</p>
+            )}
+            {rutina && ejercicios.length > 0 && (
+              <div>
+                <p className="text-sm text-concrete mb-4">{rutina.nombre}</p>
+                <div className="flex flex-col gap-4">
+                  {DIAS_ORDEN.filter((dia) => agruparPorDia(ejercicios)[dia]).map((dia) => (
+                    <div key={dia}>
+                      <span className="font-mono text-xs text-brand uppercase tracking-widest font-semibold">
+                        {dia}
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                        {agruparPorDia(ejercicios)[dia].map((e) => (
+                          <div
+                            key={e.id}
+                            className="bg-ink text-white rounded-xl p-4 flex items-center justify-between gap-3"
+                          >
+                            <span className="font-semibold text-sm leading-tight">{e.nombre}</span>
+                            <div className="text-right shrink-0">
+                              <span className="font-display font-semibold text-lg text-brand">
+                                {e.series}×{e.repeticiones}
+                              </span>
+                              {e.peso_sugerido && (
+                                <span className="block font-mono text-xs text-white/80 font-semibold mt-0.5">{e.peso_sugerido}</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
+        )}
 
         {/* ------------------ RESERVAR TURNO ------------------ */}
         <Card>
           <Eyebrow>Cupos limitados</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4">Reservar turno</h2>
 
-          <label className="block text-xs font-mono font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-            Elegí una fecha
-          </label>
-          <input
-            type="date"
-            value={fechaElegida}
-            min={hoyISO()}
-            onChange={(e) => setFechaElegida(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand"
-          />
-
-          {cargandoHorarios && <p className="text-sm text-concrete mt-4">Buscando horarios...</p>}
-          {!cargandoHorarios && horarios.length === 0 && (
-            <p className="text-sm text-concrete mt-4">No hay horarios configurados para ese día.</p>
+          {misServicios.length === 0 && (
+            <p className="text-sm text-concrete">No tenés un plan asignado todavía. Consultá con el gimnasio para poder reservar turnos.</p>
           )}
 
-          <div className="flex flex-wrap gap-3 mt-4">
-            {horarios.map((h) => {
-              const casiLleno = h.disponible && h.capacidad_maxima - h.ocupados <= 2
-              return (
-                <div
-                  key={h.id}
-                  className={`rounded-xl p-4 w-40 border-2 transition ${
-                    !h.disponible
-                      ? 'border-gray-100 bg-gray-50'
-                      : casiLleno
-                      ? 'border-brand/30 bg-brand-light'
-                      : 'border-gray-100'
+          {misServicios.length > 1 && (
+            <div className="flex gap-2 mb-4">
+              {misServicios.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setServicioElegido(s.id)}
+                  className={`text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded-lg border-2 transition ${
+                    servicioElegido === s.id
+                      ? 'bg-ink text-white border-ink'
+                      : 'bg-white text-concrete border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <strong className="block font-mono text-sm">{h.hora_inicio.slice(0, 5)}–{h.hora_fin.slice(0, 5)}</strong>
-                  <p className={`text-2xl font-display font-semibold mt-1 ${casiLleno ? 'text-brand' : 'text-ink'}`}>
-                    {h.capacidad_maxima - h.ocupados}
-                    <span className="text-xs text-gray-400 font-sans font-normal"> lugares</span>
-                  </p>
-                  <Button
-                    onClick={() => reservar(h.id)}
-                    disabled={!h.disponible}
-                    variant="primary"
-                    className="mt-3 w-full text-sm py-2 uppercase tracking-wide text-xs"
-                  >
-                    {h.disponible ? 'Reservar' : 'Completo'}
-                  </Button>
-                </div>
-              )
-            })}
-          </div>
+                  {s.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {misServicios.length > 0 && (
+            <>
+              <label className="block text-xs font-mono font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+                Elegí una fecha
+              </label>
+              <input
+                type="date"
+                value={fechaElegida}
+                min={hoyISO()}
+                onChange={(e) => setFechaElegida(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand"
+              />
+
+              {cargandoHorarios && <p className="text-sm text-concrete mt-4">Buscando horarios...</p>}
+              {!cargandoHorarios && horarios.length === 0 && (
+                <p className="text-sm text-concrete mt-4">No hay horarios configurados para ese día.</p>
+              )}
+
+              <div className="flex flex-wrap gap-3 mt-4">
+                {horarios.map((h) => {
+                  const casiLleno = h.disponible && h.capacidad_maxima - h.ocupados <= 2
+                  return (
+                    <div
+                      key={h.id}
+                      className={`rounded-xl p-4 w-40 border-2 transition ${
+                        !h.disponible
+                          ? 'border-gray-100 bg-gray-50'
+                          : casiLleno
+                          ? 'border-brand/30 bg-brand-light'
+                          : 'border-gray-100'
+                      }`}
+                    >
+                      <strong className="block font-mono text-sm">{h.hora_inicio.slice(0, 5)}–{h.hora_fin.slice(0, 5)}</strong>
+                      <p className={`text-2xl font-display font-semibold mt-1 ${casiLleno ? 'text-brand' : 'text-ink'}`}>
+                        {h.capacidad_maxima - h.ocupados}
+                        <span className="text-xs text-gray-400 font-sans font-normal"> lugares</span>
+                      </p>
+                      <Button
+                        onClick={() => reservar(h.id)}
+                        disabled={!h.disponible}
+                        variant="primary"
+                        className="mt-3 w-full text-sm py-2 uppercase tracking-wide text-xs"
+                      >
+                        {h.disponible ? 'Reservar' : 'Completo'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
 
           {mensaje && <p className="text-sm mt-4 font-medium">{mensaje}</p>}
         </Card>

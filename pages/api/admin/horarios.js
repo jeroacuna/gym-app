@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     // encarga de mostrarlos agrupados y marcados según corresponda.
     const { data: horarios, error } = await supabaseAdmin
       .from('horarios')
-      .select('id, dia_semana, hora_inicio, hora_fin, capacidad_maxima, activo')
+      .select('id, dia_semana, hora_inicio, hora_fin, capacidad_maxima, activo, servicio_id, servicios(nombre)')
       .order('hora_inicio', { ascending: true })
 
     if (error) {
@@ -24,14 +24,14 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { dia_semana, hora_inicio, hora_fin, capacidad_maxima } = req.body
-    if (!dia_semana || !hora_inicio || !hora_fin || !capacidad_maxima) {
-      return res.status(400).json({ error: 'Faltan datos del horario' })
+    const { dia_semana, hora_inicio, hora_fin, capacidad_maxima, servicio_id } = req.body
+    if (!dia_semana || !hora_inicio || !hora_fin || !capacidad_maxima || !servicio_id) {
+      return res.status(400).json({ error: 'Faltan datos del horario (incluyendo el servicio)' })
     }
 
     const { data, error } = await supabaseAdmin
       .from('horarios')
-      .insert({ dia_semana, hora_inicio, hora_fin, capacidad_maxima })
+      .insert({ dia_semana, hora_inicio, hora_fin, capacidad_maxima, servicio_id })
       .select()
       .single()
 
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
   if (req.method === 'PUT') {
     // Sirve tanto para editar hora/capacidad como para activar/desactivar
     // (mandando solo el campo "activo" en el body).
-    const { id, dia_semana, hora_inicio, hora_fin, capacidad_maxima, activo } = req.body
+    const { id, dia_semana, hora_inicio, hora_fin, capacidad_maxima, activo, servicio_id } = req.body
     if (!id) {
       return res.status(400).json({ error: 'Falta el id del horario' })
     }
@@ -56,6 +56,7 @@ export default async function handler(req, res) {
     if (hora_fin !== undefined) cambios.hora_fin = hora_fin
     if (capacidad_maxima !== undefined) cambios.capacidad_maxima = capacidad_maxima
     if (activo !== undefined) cambios.activo = activo
+    if (servicio_id !== undefined) cambios.servicio_id = servicio_id
 
     const { error } = await supabaseAdmin.from('horarios').update(cambios).eq('id', id)
 

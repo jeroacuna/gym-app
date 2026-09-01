@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { dni, nombre, apellido, email, telefono } = req.body
+    const { dni, nombre, apellido, email, telefono, plan_id } = req.body
 
     if (!dni || !nombre || !apellido) {
       return res.status(400).json({ error: 'DNI, nombre y apellido son obligatorios' })
@@ -29,6 +29,7 @@ export default async function handler(req, res) {
         apellido: apellido.trim(),
         email: email || null,
         telefono: telefono || null,
+        plan_id: plan_id || null,
         rol: 'socio',
       })
       .select()
@@ -46,7 +47,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PUT') {
-    const { id, nombre, apellido, email, telefono, activo } = req.body
+    const { id, nombre, apellido, email, telefono, activo, plan_id } = req.body
     if (!id) {
       return res.status(400).json({ error: 'Falta el id del socio' })
     }
@@ -60,6 +61,7 @@ export default async function handler(req, res) {
     if (email !== undefined) cambios.email = email || null
     if (telefono !== undefined) cambios.telefono = telefono || null
     if (activo !== undefined) cambios.activo = activo
+    if (plan_id !== undefined) cambios.plan_id = plan_id || null
 
     const { error } = await supabaseAdmin.from('usuarios').update(cambios).eq('id', id)
 
@@ -84,7 +86,7 @@ export default async function handler(req, res) {
   // gente que ya no va al gimnasio.
   let query = supabaseAdmin
     .from('usuarios')
-    .select('id, nombre, apellido, dni, email, telefono, activo')
+    .select('id, nombre, apellido, dni, email, telefono, activo, plan_id, planes(id, nombre)')
     .eq('rol', 'socio')
     .order('apellido', { ascending: true })
 

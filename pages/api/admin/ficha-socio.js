@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
   const { data: socio, error: errorSocio } = await supabaseAdmin
     .from('usuarios')
-    .select('id, dni, nombre, apellido, email, telefono, activo, fecha_alta')
+    .select('id, dni, nombre, apellido, email, telefono, activo, fecha_alta, plan_id, planes(id, nombre, precio)')
     .eq('id', usuario_id)
     .single()
 

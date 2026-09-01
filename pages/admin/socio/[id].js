@@ -69,9 +69,14 @@ export default function FichaSocio() {
         <p className="text-sm text-gray-500">
           DNI {socio.dni} · {socio.email || 'sin email'} · {socio.telefono || 'sin teléfono'}
         </p>
-        <span className={`inline-block mt-2 text-xs font-semibold px-2.5 py-1 rounded-full ${socio.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-          {socio.activo ? 'Activo' : 'Inactivo'}
-        </span>
+        <div className="flex items-center gap-2 mt-2">
+          <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${socio.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+            {socio.activo ? 'Activo' : 'Inactivo'}
+          </span>
+          <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+            {socio.planes?.nombre || 'Sin plan asignado'}
+          </span>
+        </div>
 
         {/* ------------------ RUTINA ------------------ */}
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">

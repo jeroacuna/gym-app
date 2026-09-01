@@ -17,11 +17,12 @@ export async function getServerSideProps({ req, res }) {
 }
 
 function socioVacio() {
-  return { dni: '', nombre: '', apellido: '', email: '', telefono: '' }
+  return { dni: '', nombre: '', apellido: '', email: '', telefono: '', plan_id: '' }
 }
 
 export default function AdminSocios() {
   const [socios, setSocios] = useState([])
+  const [planes, setPlanes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [nuevo, setNuevo] = useState(socioVacio())
   const [mensaje, setMensaje] = useState('')
@@ -31,6 +32,9 @@ export default function AdminSocios() {
 
   useEffect(() => {
     cargarSocios()
+    fetch('/api/admin/planes')
+      .then((r) => r.json())
+      .then((data) => setPlanes((data.planes || []).filter((p) => p.activo)))
   }, [])
 
   function cargarSocios() {
@@ -157,6 +161,16 @@ export default function AdminSocios() {
               onChange={(e) => setNuevo({ ...nuevo, telefono: e.target.value })}
               className="px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
             />
+            <select
+              value={nuevo.plan_id}
+              onChange={(e) => setNuevo({ ...nuevo, plan_id: e.target.value })}
+              className="px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+            >
+              <option value="">Sin plan asignado</option>
+              {planes.map((p) => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
             <button
               type="submit"
               disabled={guardando}
@@ -209,6 +223,16 @@ export default function AdminSocios() {
                     className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-sm"
                     placeholder="Teléfono"
                   />
+                  <select
+                    value={borrador.plan_id || ''}
+                    onChange={(e) => setBorrador({ ...borrador, plan_id: e.target.value })}
+                    className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-sm"
+                  >
+                    <option value="">Sin plan</option>
+                    {planes.map((p) => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
                   <button onClick={guardarEdicion} className="text-xs border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-white transition">Guardar</button>
                   <button onClick={cancelarEdicion} className="text-xs border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-white transition">Cancelar</button>
                 </div>
@@ -222,7 +246,7 @@ export default function AdminSocios() {
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                     {s.activo ? 'Activo' : 'De baja'}
                   </span>
-                  <div className="text-xs text-gray-500">DNI {s.dni}</div>
+                  <div className="text-xs text-gray-500">DNI {s.dni} · {s.planes?.nombre || 'sin plan'}</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Link href={`/admin/socio/${s.id}`} className="text-sm text-brand hover:underline">Ver ficha →</Link>

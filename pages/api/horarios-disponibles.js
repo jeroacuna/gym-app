@@ -3,10 +3,14 @@ import { supabaseAdmin } from '../../lib/supabaseClient'
 const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
 
 export default async function handler(req, res) {
-  const { fecha } = req.query
+  const { fecha, servicio_id } = req.query
 
   if (!fecha) {
     return res.status(400).json({ error: 'Falta la fecha' })
+  }
+
+  if (!servicio_id) {
+    return res.status(400).json({ error: 'Falta el servicio (gimnasio o pilates)' })
   }
 
   // OJO con esto: parseamos agregando "T00:00:00" para que JavaScript
@@ -19,6 +23,7 @@ export default async function handler(req, res) {
     .from('horarios')
     .select('id, hora_inicio, hora_fin, capacidad_maxima')
     .eq('dia_semana', diaSemana)
+    .eq('servicio_id', servicio_id)
     .eq('activo', true)
     .order('hora_inicio', { ascending: true })
 
