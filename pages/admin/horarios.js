@@ -18,8 +18,8 @@ export async function getServerSideProps({ req, res }) {
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 const MAPA_DIA_A_NUMERO = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }
 
-function horarioVacio() {
-  return { dia_semana: 'lunes', hora_inicio: '08:00', hora_fin: '09:00', capacidad_maxima: 10 }
+function horarioVacio(servicioId) {
+  return { dia_semana: 'lunes', hora_inicio: '08:00', hora_fin: '09:00', capacidad_maxima: 10, servicio_id: servicioId || '' }
 }
 
 function proximaFecha(diaSemana) {
@@ -32,6 +32,8 @@ function proximaFecha(diaSemana) {
 }
 
 export default function AdminHorarios() {
+  const [servicios, setServicios] = useState([])
+  const [servicioActivo, setServicioActivo] = useState(null)
   const [horarios, setHorarios] = useState([])
   const [cargando, setCargando] = useState(true)
   const [nuevo, setNuevo] = useState(horarioVacio())
@@ -39,6 +41,16 @@ export default function AdminHorarios() {
   const [anotadosPorHorario, setAnotadosPorHorario] = useState({})
 
   useEffect(() => {
+    fetch('/api/admin/servicios')
+      .then((r) => r.json())
+      .then((data) => {
+        const lista = data.servicios || []
+        setServicios(lista)
+        if (lista.length > 0) {
+          setServicioActivo(lista[0].id)
+          setNuevo(horarioVacio(lista[0].id))
+        }
+      })
     cargarHorarios()
   }, [])
 
@@ -64,7 +76,7 @@ export default function AdminHorarios() {
       setMensaje(`❌ ${data.error}`)
       return
     }
-    setNuevo(horarioVacio())
+    setNuevo(horarioVacio(servicioActivo))
     cargarHorarios()
   }
 
@@ -125,6 +137,13 @@ export default function AdminHorarios() {
       })
   }
 
+  function elegirServicio(servicioId) {
+    setServicioActivo(servicioId)
+    setNuevo((prev) => ({ ...prev, servicio_id: servicioId }))
+  }
+
+  const horariosDelServicio = horarios.filter((h) => h.servicio_id === servicioActivo)
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar links={ADMIN_NAV_LINKS} />
@@ -132,9 +151,40 @@ export default function AdminHorarios() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
         <h1 className="text-2xl font-bold mb-6">Gestión de horarios</h1>
 
+        {/* Pestañas por servicio: los horarios de gimnasio y pilates
+            se manejan por separado, así no se mezclan en la lista. */}
+        {servicios.length > 1 && (
+          <div className="flex gap-2 mb-4">
+            {servicios.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => elegirServicio(s.id)}
+                className={`text-sm font-semibold px-4 py-2 rounded-lg border transition ${
+                  servicioActivo === s.id
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {s.nombre}
+              </button>
+            ))}
+          </div>
+        )}
+
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
           <h2 className="text-lg font-semibold mb-3">Agregar horario nuevo</h2>
           <div className="flex flex-wrap gap-2 items-center">
+            {servicios.length > 1 && (
+              <select
+                value={nuevo.servicio_id}
+                onChange={(e) => setNuevo({ ...nuevo, servicio_id: e.target.value })}
+                className="px-2.5 py-2 rounded-lg border border-gray-300 text-sm"
+              >
+                {servicios.map((s) => (
+                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                ))}
+              </select>
+            )}
             <select
               value={nuevo.dia_semana}
               onChange={(e) => setNuevo({ ...nuevo, dia_semana: e.target.value })}
@@ -176,7 +226,7 @@ export default function AdminHorarios() {
           {cargando && <p className="text-sm text-gray-500">Cargando...</p>}
 
           {DIAS.map((dia) => {
-            const horariosDelDia = horarios.filter((h) => h.dia_semana === dia)
+            const horariosDelDia = horariosDelServicio.filter((h) => h.dia_semana === dia)
             if (horariosDelDia.length === 0) return null
 
             return (
@@ -197,6 +247,17 @@ export default function AdminHorarios() {
                             onBlur={(e) => actualizarCapacidad(h, Number(e.target.value))}
                             className="w-14 px-1.5 py-0.5 rounded border border-gray-300 text-sm"
                           />
+                        </span>
+                        <span
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                            h.ocupados >= h.capacidad_maxima
+                              ? 'bg-red-100 text-red-700'
+                              : h.capacidad_maxima - h.ocupados <= 2
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-blue-50 text-blue-700'
+                          }`}
+                        >
+                          {h.ocupados}/{h.capacidad_maxima} ocupados ({Math.max(h.capacidad_maxima - h.ocupados, 0)} libres)
                         </span>
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${h.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                           {h.activo ? 'Activo' : 'Inactivo'}
@@ -242,6 +303,10 @@ export default function AdminHorarios() {
               </div>
             )
           })}
+
+          {!cargando && horariosDelServicio.length === 0 && (
+            <p className="text-sm text-gray-500 mt-2">Todavía no hay horarios cargados para este servicio.</p>
+          )}
         </section>
       </div>
     </div>

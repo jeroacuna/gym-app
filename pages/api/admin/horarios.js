@@ -2,6 +2,21 @@ import { getIronSession } from 'iron-session'
 import { sessionOptions } from '../../../lib/session'
 import { supabaseAdmin } from '../../../lib/supabaseClient'
 
+const MAPA_DIA_A_NUMERO = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 }
+
+// Como los horarios son una plantilla semanal (no una fecha puntual),
+// para mostrarle al admin "cuántos cupos quedan" necesitamos elegir
+// UNA fecha concreta: la próxima vez que ese día de la semana ocurra
+// (hoy mismo si coincide, si no el próximo).
+function proximaFecha(diaSemana) {
+  const hoy = new Date()
+  const objetivo = MAPA_DIA_A_NUMERO[diaSemana]
+  const diferencia = (objetivo - hoy.getDay() + 7) % 7
+  const fecha = new Date(hoy)
+  fecha.setDate(hoy.getDate() + diferencia)
+  return fecha.toISOString().slice(0, 10)
+}
+
 export default async function handler(req, res) {
   const session = await getIronSession(req, res, sessionOptions)
   if (!session.usuario || session.usuario.rol !== 'admin') {
@@ -20,7 +35,30 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Error al buscar horarios' })
     }
 
-    return res.status(200).json({ horarios: horarios || [] })
+    // A cada horario le calculamos su próxima fecha, y de paso
+    // juntamos todas esas fechas para hacer UNA sola consulta de
+    // reservas en vez de una por horario.
+    const conFecha = (horarios || []).map((h) => ({ ...h, proxima_fecha: proximaFecha(h.dia_semana) }))
+    const fechas = [...new Set(conFecha.map((h) => h.proxima_fecha))]
+
+    const { data: reservas, error: errorReservas } = await supabaseAdmin
+      .from('reservas')
+      .select('horario_id, fecha')
+      .eq('estado', 'activa')
+      .in('fecha', fechas)
+
+    if (errorReservas) {
+      return res.status(500).json({ error: 'No se pudieron calcular los cupos ocupados' })
+    }
+
+    const horariosConCupos = conFecha.map((h) => {
+      const ocupados = (reservas || []).filter(
+        (r) => r.horario_id === h.id && r.fecha === h.proxima_fecha
+      ).length
+      return { ...h, ocupados }
+    })
+
+    return res.status(200).json({ horarios: horariosConCupos })
   }
 
   if (req.method === 'POST') {
