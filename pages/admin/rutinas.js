@@ -18,6 +18,13 @@ export async function getServerSideProps({ req, res }) {
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 
+const BLOQUES = [
+  { value: 'activacion', label: 'Activación' },
+  { value: 'fuerza_1', label: 'Fuerza 1' },
+  { value: 'fuerza_2', label: 'Fuerza 2' },
+  { value: 'finalizador', label: 'Finalizador' },
+]
+
 function ejercicioVacio(orden) {
   return {
     id: `nuevo-${Date.now()}`,
@@ -26,6 +33,7 @@ function ejercicioVacio(orden) {
     repeticiones: '10-12',
     peso_sugerido: '',
     dia_semana: 'lunes',
+    bloque: 'activacion',
     orden,
     esNuevo: true,
   }
@@ -197,6 +205,15 @@ export default function AdminRutinas() {
                     >
                       {DIAS.map((d) => (
                         <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={e.bloque || 'activacion'}
+                      onChange={(ev) => actualizarCampo(e.id, 'bloque', ev.target.value)}
+                      className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-sm"
+                    >
+                      {BLOQUES.map((b) => (
+                        <option key={b.value} value={b.value}>{b.label}</option>
                       ))}
                     </select>
                     <input
