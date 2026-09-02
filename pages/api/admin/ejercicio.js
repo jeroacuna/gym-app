@@ -9,14 +9,14 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { rutina_id, nombre, series, repeticiones, peso_sugerido, dia_semana, orden } = req.body
+    const { rutina_id, nombre, series, repeticiones, peso_sugerido, dia_semana, bloque, orden } = req.body
     if (!rutina_id || !nombre || !series || !repeticiones) {
       return res.status(400).json({ error: 'Faltan datos del ejercicio' })
     }
 
     const { data, error } = await supabaseAdmin
       .from('ejercicios')
-      .insert({ rutina_id, nombre, series, repeticiones, peso_sugerido, dia_semana, orden: orden || 0 })
+      .insert({ rutina_id, nombre, series, repeticiones, peso_sugerido, dia_semana, bloque: bloque || 'fuerza_1', orden: orden || 0 })
       .select()
       .single()
 
@@ -28,14 +28,14 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PUT') {
-    const { id, nombre, series, repeticiones, peso_sugerido, dia_semana, orden } = req.body
+    const { id, nombre, series, repeticiones, peso_sugerido, dia_semana, bloque, orden } = req.body
     if (!id) {
       return res.status(400).json({ error: 'Falta el id del ejercicio' })
     }
 
     const { error } = await supabaseAdmin
       .from('ejercicios')
-      .update({ nombre, series, repeticiones, peso_sugerido, dia_semana, orden })
+      .update({ nombre, series, repeticiones, peso_sugerido, dia_semana, bloque, orden })
       .eq('id', id)
 
     if (error) {

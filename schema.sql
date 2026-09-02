@@ -51,6 +51,8 @@ CREATE TABLE ejercicios (
     repeticiones VARCHAR(20) NOT NULL, -- texto para permitir "8-12", "hasta el fallo", etc.
     peso_sugerido VARCHAR(20),
     dia_semana VARCHAR(15), -- ej: "lunes", "miercoles" (a qué día de la rutina pertenece)
+    bloque VARCHAR(20) NOT NULL DEFAULT 'fuerza_1'
+        CHECK (bloque IN ('activacion', 'fuerza_1', 'fuerza_2', 'finalizador')),
     orden INTEGER NOT NULL DEFAULT 0
 );
 

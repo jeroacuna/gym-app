@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     const { data: ejercicios } = await supabaseAdmin
       .from('ejercicios')
-      .select('id, nombre, series, repeticiones, peso_sugerido, dia_semana, orden')
+      .select('id, nombre, series, repeticiones, peso_sugerido, dia_semana, bloque, orden')
       .eq('rutina_id', rutina.id)
       .order('orden', { ascending: true })
 

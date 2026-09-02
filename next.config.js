@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    turbopackRules: {}
-  },
-  // Añade esto si tu versión lo requiere o usa la propiedad experimental de turbopack
+  // Aquí puedes agregar futuras configuraciones si las necesitas
 };
 
 module.exports = nextConfig;
