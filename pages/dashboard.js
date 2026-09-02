@@ -20,12 +20,31 @@ function hoyISO() {
 
 const DIAS_ORDEN = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 
+const BLOQUES_ORDEN = ['activacion', 'fuerza_1', 'fuerza_2', 'finalizador']
+
+const BLOQUES_INFO = {
+  activacion: { label: 'Activación', color: '#0ea5e9' },
+  fuerza_1: { label: 'Fuerza 1', color: '#e11d2e' },
+  fuerza_2: { label: 'Fuerza 2', color: '#a3121f' },
+  finalizador: { label: 'Finalizador', color: '#111827' },
+}
+
 function agruparPorDia(ejercicios) {
   const grupos = {}
   ejercicios.forEach((e) => {
     const dia = e.dia_semana || 'sin día'
     if (!grupos[dia]) grupos[dia] = []
     grupos[dia].push(e)
+  })
+  return grupos
+}
+
+function agruparPorBloque(ejercicios) {
+  const grupos = {}
+  ejercicios.forEach((e) => {
+    const bloque = e.bloque || 'fuerza_1'
+    if (!grupos[bloque]) grupos[bloque] = []
+    grupos[bloque].push(e)
   })
   return grupos
 }
@@ -39,7 +58,6 @@ export default function Dashboard({ usuario }) {
   const [servicioElegido, setServicioElegido] = useState(null)
   const [fechaElegida, setFechaElegida] = useState(hoyISO())
   const [horarios, setHorarios] = useState([])
-  const [proximoDisponible, setProximoDisponible] = useState(null)
   const [misReservas, setMisReservas] = useState([])
   const [mensaje, setMensaje] = useState('')
   const [cargandoHorarios, setCargandoHorarios] = useState(false)
@@ -76,7 +94,6 @@ export default function Dashboard({ usuario }) {
   useEffect(() => {
     if (!servicioElegido || !servicioIncluido(servicioElegido)) {
       setHorarios([])
-      setProximoDisponible(null)
       return
     }
     setCargandoHorarios(true)
@@ -84,7 +101,6 @@ export default function Dashboard({ usuario }) {
       .then((r) => r.json())
       .then((data) => {
         setHorarios(data.horarios || [])
-        setProximoDisponible(data.proximoDisponible || null)
         setCargandoHorarios(false)
       })
   }, [fechaElegida, servicioElegido, misServicios])
@@ -99,10 +115,7 @@ export default function Dashboard({ usuario }) {
     if (!servicioElegido || !servicioIncluido(servicioElegido)) return
     fetch(`/api/horarios-disponibles?fecha=${fechaElegida}&servicio_id=${servicioElegido}`)
       .then((r) => r.json())
-      .then((data) => {
-        setHorarios(data.horarios || [])
-        setProximoDisponible(data.proximoDisponible || null)
-      })
+      .then((data) => setHorarios(data.horarios || []))
   }
 
   async function reservar(horarioId) {
@@ -190,33 +203,86 @@ export default function Dashboard({ usuario }) {
             )}
             {rutina && ejercicios.length > 0 && (
               <div>
-                <p className="text-sm text-concrete mb-4">{rutina.nombre}</p>
-                <div className="flex flex-col gap-4">
-                  {DIAS_ORDEN.filter((dia) => agruparPorDia(ejercicios)[dia]).map((dia) => (
-                    <div key={dia}>
-                      <span className="font-mono text-xs text-brand uppercase tracking-widest font-semibold">
-                        {dia}
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                        {agruparPorDia(ejercicios)[dia].map((e) => (
-                          <div
-                            key={e.id}
-                            className="bg-ink text-white rounded-xl p-4 flex items-center justify-between gap-3"
-                          >
-                            <span className="font-semibold text-sm leading-tight">{e.nombre}</span>
-                            <div className="text-right shrink-0">
-                              <span className="font-display font-semibold text-lg text-brand">
-                                {e.series}×{e.repeticiones}
-                              </span>
-                              {e.peso_sugerido && (
-                                <span className="block font-mono text-xs text-white/80 font-semibold mt-0.5">{e.peso_sugerido}</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                <p className="text-sm text-concrete mb-5">{rutina.nombre}</p>
+                <div className="flex flex-col gap-7">
+                  {DIAS_ORDEN.filter((dia) => agruparPorDia(ejercicios)[dia]).map((dia) => {
+                    const porBloque = agruparPorBloque(agruparPorDia(ejercicios)[dia])
+                    return (
+                      <div key={dia}>
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="font-display font-semibold text-sm uppercase tracking-wide text-ink">
+                            {dia}
+                          </span>
+                          <div className="h-px flex-1 bg-gray-200" />
+                        </div>
+
+                        <div className="flex flex-col gap-4">
+                          {BLOQUES_ORDEN.filter((b) => porBloque[b]).map((bloque) => {
+                            const info = BLOQUES_INFO[bloque]
+                            return (
+                              <div
+                                key={bloque}
+                                className="rounded-xl border border-gray-100 overflow-hidden"
+                              >
+                                {/* ---- Encabezado del bloque ---- */}
+                                <div
+                                  className="flex items-center gap-2 px-4 py-2"
+                                  style={{ backgroundColor: info.color }}
+                                >
+                                  <span className="font-mono text-[11px] font-semibold uppercase tracking-widest text-white">
+                                    {info.label}
+                                  </span>
+                                </div>
+
+                                {/* ---- Tabla tipo planilla ---- */}
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm border-collapse">
+                                    <thead>
+                                      <tr className="bg-gray-50">
+                                        <th className="text-left font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-4 py-2 border-b border-gray-200">
+                                          Ejercicio
+                                        </th>
+                                        <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-16">
+                                          Series
+                                        </th>
+                                        <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-20">
+                                          Reps
+                                        </th>
+                                        <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-24">
+                                          Peso
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {porBloque[bloque].map((e, i) => (
+                                        <tr
+                                          key={e.id}
+                                          className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}
+                                        >
+                                          <td className="px-4 py-2.5 border-b border-gray-100 font-medium text-ink">
+                                            {e.nombre}
+                                          </td>
+                                          <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono font-semibold text-ink">
+                                            {e.series}
+                                          </td>
+                                          <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono font-semibold text-ink">
+                                            {e.repeticiones}
+                                          </td>
+                                          <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono text-concrete">
+                                            {e.peso_sugerido || '—'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -280,25 +346,8 @@ export default function Dashboard({ usuario }) {
               />
 
               {cargandoHorarios && <p className="text-sm text-concrete mt-4">Buscando horarios...</p>}
-              {!cargandoHorarios && horarios.length === 0 && !proximoDisponible && (
+              {!cargandoHorarios && horarios.length === 0 && (
                 <p className="text-sm text-concrete mt-4">No hay horarios de {nombreServicioElegido} configurados para ese día.</p>
-              )}
-
-              {!cargandoHorarios && proximoDisponible && (
-                <div className="bg-brand-light border border-brand/30 rounded-xl p-4 mt-4 text-sm flex items-center justify-between gap-3 flex-wrap">
-                  <span>
-                    No hay lugar para {nombreServicioElegido} ese día. El próximo turno con cupo es el{' '}
-                    <strong>{proximoDisponible.fecha}</strong> de{' '}
-                    <strong>{proximoDisponible.hora_inicio.slice(0, 5)} a {proximoDisponible.hora_fin.slice(0, 5)}</strong>.
-                  </span>
-                  <Button
-                    variant="primary"
-                    className="text-xs py-2 px-4 uppercase tracking-wide shrink-0"
-                    onClick={() => setFechaElegida(proximoDisponible.fecha)}
-                  >
-                    Ir a esa fecha
-                  </Button>
-                </div>
               )}
 
               <div className="flex flex-wrap gap-3 mt-4">
