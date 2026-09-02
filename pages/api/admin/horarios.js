@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     // encarga de mostrarlos agrupados y marcados según corresponda.
     const { data: horarios, error } = await supabaseAdmin
       .from('horarios')
-      .select('id, dia_semana, hora_inicio, hora_fin, capacidad_maxima, activo, servicio_id, servicios(nombre)')
+      .select('id, dia_semana, hora_inicio, hora_fin, capacidad_maxima, activo, servicio_id')
       .order('hora_inicio', { ascending: true })
 
     if (error) {

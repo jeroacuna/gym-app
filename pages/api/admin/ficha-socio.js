@@ -20,12 +20,25 @@ export default async function handler(req, res) {
 
   const { data: socio, error: errorSocio } = await supabaseAdmin
     .from('usuarios')
-    .select('id, dni, nombre, apellido, email, telefono, activo, fecha_alta, plan_id, planes(id, nombre, precio)')
+    .select('id, dni, nombre, apellido, email, telefono, activo, fecha_alta, plan_id')
     .eq('id', usuario_id)
     .single()
 
   if (errorSocio || !socio) {
     return res.status(404).json({ error: 'Socio no encontrado' })
+  }
+
+  // Traemos el plan por separado (en vez del cruce automático de
+  // Supabase, ver nota en mi-plan.js sobre por qué lo evitamos).
+  if (socio.plan_id) {
+    const { data: plan } = await supabaseAdmin
+      .from('planes')
+      .select('id, nombre, precio')
+      .eq('id', socio.plan_id)
+      .single()
+    socio.planes = plan || null
+  } else {
+    socio.planes = null
   }
 
   // --- Rutina activa ---

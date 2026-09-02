@@ -20,9 +20,6 @@ function hoyISO() {
 
 const DIAS_ORDEN = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 
-// Agrupa la lista plana de ejercicios en un objeto { dia: [ejercicios] },
-// para poder pintar la rutina como una tablilla por día en vez de una
-// tabla larga y pelada.
 function agruparPorDia(ejercicios) {
   const grupos = {}
   ejercicios.forEach((e) => {
@@ -36,7 +33,9 @@ function agruparPorDia(ejercicios) {
 export default function Dashboard({ usuario }) {
   const [rutina, setRutina] = useState(null)
   const [ejercicios, setEjercicios] = useState([])
-  const [misServicios, setMisServicios] = useState([]) // servicios que incluye el plan del socio
+  const [anuncios, setAnuncios] = useState([])
+  const [todosLosServicios, setTodosLosServicios] = useState([])
+  const [misServicios, setMisServicios] = useState([])
   const [servicioElegido, setServicioElegido] = useState(null)
   const [fechaElegida, setFechaElegida] = useState(hoyISO())
   const [horarios, setHorarios] = useState([])
@@ -52,19 +51,32 @@ export default function Dashboard({ usuario }) {
         setEjercicios(data.ejercicios)
       })
 
-    fetch('/api/mi-plan')
+    fetch('/api/anuncios')
+      .then((r) => r.json())
+      .then((data) => setAnuncios(data.anuncios || []))
+
+    fetch('/api/servicios')
       .then((r) => r.json())
       .then((data) => {
         const servicios = data.servicios || []
-        setMisServicios(servicios)
-        if (servicios.length > 0) setServicioElegido(servicios[0].id)
+        setTodosLosServicios(servicios)
+        setServicioElegido((prev) => prev || (servicios[0] && servicios[0].id))
       })
+
+    fetch('/api/mi-plan')
+      .then((r) => r.json())
+      .then((data) => setMisServicios(data.servicios || []))
 
     cargarMisReservas()
   }, [])
 
+  const servicioIncluido = (id) => misServicios.some((s) => s.id === id)
+
   useEffect(() => {
-    if (!servicioElegido) return
+    if (!servicioElegido || !servicioIncluido(servicioElegido)) {
+      setHorarios([])
+      return
+    }
     setCargandoHorarios(true)
     fetch(`/api/horarios-disponibles?fecha=${fechaElegida}&servicio_id=${servicioElegido}`)
       .then((r) => r.json())
@@ -72,7 +84,7 @@ export default function Dashboard({ usuario }) {
         setHorarios(data.horarios || [])
         setCargandoHorarios(false)
       })
-  }, [fechaElegida, servicioElegido])
+  }, [fechaElegida, servicioElegido, misServicios])
 
   function cargarMisReservas() {
     fetch('/api/reservas')
@@ -81,7 +93,7 @@ export default function Dashboard({ usuario }) {
   }
 
   function recargarHorarios() {
-    if (!servicioElegido) return
+    if (!servicioElegido || !servicioIncluido(servicioElegido)) return
     fetch(`/api/horarios-disponibles?fecha=${fechaElegida}&servicio_id=${servicioElegido}`)
       .then((r) => r.json())
       .then((data) => setHorarios(data.horarios || []))
@@ -122,6 +134,7 @@ export default function Dashboard({ usuario }) {
   }
 
   const tieneGimnasio = misServicios.some((s) => s.nombre === 'Gimnasio')
+  const nombreServicioElegido = todosLosServicios.find((s) => s.id === servicioElegido)?.nombre || ''
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -145,6 +158,18 @@ export default function Dashboard({ usuario }) {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
+        {/* ------------------ ANUNCIOS ------------------ */}
+        {anuncios.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {anuncios.map((a) => (
+              <div key={a.id} className="bg-brand-light border border-brand/30 rounded-xl p-4 text-sm text-ink flex gap-2 items-start">
+                <span>📣</span>
+                <span>{a.mensaje}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ------------------ RUTINA (solo si el plan incluye Gimnasio) ------------------ */}
         {tieneGimnasio && (
           <Card>
@@ -195,15 +220,18 @@ export default function Dashboard({ usuario }) {
         {/* ------------------ RESERVAR TURNO ------------------ */}
         <Card>
           <Eyebrow>Cupos limitados</Eyebrow>
-          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4">Reservar turno</h2>
+          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-1">Reservar turno</h2>
 
-          {misServicios.length === 0 && (
-            <p className="text-sm text-concrete">No tenés un plan asignado todavía. Consultá con el gimnasio para poder reservar turnos.</p>
+          {todosLosServicios.length === 0 && (
+            <p className="text-sm text-concrete mt-3">Todavía no hay actividades cargadas.</p>
           )}
 
-          {misServicios.length > 1 && (
-            <div className="flex gap-2 mb-4">
-              {misServicios.map((s) => (
+          {/* Pestañas SIEMPRE visibles (aunque el socio solo tenga una
+              actividad incluida en su plan), para que nunca quede
+              ambiguo qué está reservando. */}
+          {todosLosServicios.length > 0 && (
+            <div className="flex gap-2 my-3">
+              {todosLosServicios.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setServicioElegido(s.id)}
@@ -214,13 +242,26 @@ export default function Dashboard({ usuario }) {
                   }`}
                 >
                   {s.nombre}
+                  {!servicioIncluido(s.id) && (
+                    <span className="ml-1.5 text-[10px] font-normal normal-case opacity-70">(no anotado)</span>
+                  )}
                 </button>
               ))}
             </div>
           )}
 
-          {misServicios.length > 0 && (
+          {servicioElegido && !servicioIncluido(servicioElegido) && (
+            <p className="text-sm text-concrete bg-gray-50 rounded-xl p-4">
+              No estás anotado a <strong>{nombreServicioElegido}</strong> todavía. Si te interesa sumarla a tu plan, consultá en recepción.
+            </p>
+          )}
+
+          {servicioElegido && servicioIncluido(servicioElegido) && (
             <>
+              <p className="text-xs text-gray-400 mb-2">
+                Reservando en: <strong className="text-ink">{nombreServicioElegido}</strong>
+              </p>
+
               <label className="block text-xs font-mono font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
                 Elegí una fecha
               </label>
@@ -234,7 +275,7 @@ export default function Dashboard({ usuario }) {
 
               {cargandoHorarios && <p className="text-sm text-concrete mt-4">Buscando horarios...</p>}
               {!cargandoHorarios && horarios.length === 0 && (
-                <p className="text-sm text-concrete mt-4">No hay horarios configurados para ese día.</p>
+                <p className="text-sm text-concrete mt-4">No hay horarios de {nombreServicioElegido} configurados para ese día.</p>
               )}
 
               <div className="flex flex-wrap gap-3 mt-4">
@@ -262,7 +303,7 @@ export default function Dashboard({ usuario }) {
                         variant="primary"
                         className="mt-3 w-full text-sm py-2 uppercase tracking-wide text-xs"
                       >
-                        {h.disponible ? 'Reservar' : 'Completo'}
+                        {h.disponible ? `Reservar ${nombreServicioElegido}` : 'Completo'}
                       </Button>
                     </div>
                   )
@@ -280,7 +321,7 @@ export default function Dashboard({ usuario }) {
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4">Mis turnos reservados</h2>
 
           {misReservas.length === 0 && (
-            <p className="text-sm text-concrete">Todavía no reservaste ningún turno. Arriba podés elegir día y horario.</p>
+            <p className="text-sm text-concrete">Todavía no reservaste ningún turno. Arriba podés elegir actividad, día y horario.</p>
           )}
           {misReservas.map((r) => (
             <div key={r.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0">

@@ -86,7 +86,7 @@ export default async function handler(req, res) {
   // gente que ya no va al gimnasio.
   let query = supabaseAdmin
     .from('usuarios')
-    .select('id, nombre, apellido, dni, email, telefono, activo, plan_id, planes(id, nombre)')
+    .select('id, nombre, apellido, dni, email, telefono, activo, plan_id')
     .eq('rol', 'socio')
     .order('apellido', { ascending: true })
 
@@ -111,8 +111,15 @@ export default async function handler(req, res) {
     estadoPorUsuario[p.usuario_id] = p.estado
   })
 
+  // Traemos los planes por separado y los cruzamos acá (en vez del
+  // cruce automático de Supabase, ver nota en mi-plan.js).
+  const { data: planes } = await supabaseAdmin.from('planes').select('id, nombre')
+  const planPorId = {}
+  ;(planes || []).forEach((p) => { planPorId[p.id] = p })
+
   const resultado = (socios || []).map((s) => ({
     ...s,
+    planes: s.plan_id ? planPorId[s.plan_id] || null : null,
     pagado: estadoPorUsuario[s.id] === 'pagado',
   }))
 

@@ -15,19 +15,36 @@ export async function getServerSideProps({ req, res }) {
   return { props: { usuario: session.usuario } }
 }
 
-function planVacio() {
-  return { nombre: '', precio: '', servicios: {} } // servicios: { [servicio_id]: { incluido, dias_por_semana } }
+// Solo existen 3 tipos posibles de plan. Nada de armar combinaciones
+// raras a mano: esto evita cargar mal un plan y que después el socio
+// no pueda reservar nada porque quedó sin servicios asignados.
+const TIPOS = [
+  { valor: 'gimnasio', etiqueta: 'Gimnasio' },
+  { valor: 'pilates', etiqueta: 'Pilates' },
+  { valor: 'ambos', etiqueta: 'Ambos (Gimnasio + Pilates)' },
+]
+
+function nombrePorDefecto(tipo) {
+  if (tipo === 'gimnasio') return 'Gimnasio'
+  if (tipo === 'pilates') return 'Pilates'
+  return 'Combo Gimnasio + Pilates'
 }
 
-// Convierte el objeto { [servicio_id]: {incluido, dias_por_semana} } al
-// array plano que espera la API: [{ servicio_id, dias_por_semana }]
-function aArrayServicios(mapaServicios) {
-  return Object.entries(mapaServicios)
-    .filter(([, v]) => v.incluido)
-    .map(([servicio_id, v]) => ({
-      servicio_id,
-      dias_por_semana: v.dias_por_semana ? Number(v.dias_por_semana) : null,
-    }))
+function planVacio() {
+  return { nombre: '', precio: '', tipo: 'gimnasio', dias_gimnasio: '', dias_pilates: '', nombreTocado: false }
+}
+
+// A partir del tipo elegido y los días por semana, arma el array que
+// espera la API: [{ servicio_id, dias_por_semana }]
+function armarServicios(estado, idGimnasio, idPilates) {
+  const filas = []
+  if ((estado.tipo === 'gimnasio' || estado.tipo === 'ambos') && idGimnasio) {
+    filas.push({ servicio_id: idGimnasio, dias_por_semana: estado.dias_gimnasio ? Number(estado.dias_gimnasio) : null })
+  }
+  if ((estado.tipo === 'pilates' || estado.tipo === 'ambos') && idPilates) {
+    filas.push({ servicio_id: idPilates, dias_por_semana: estado.dias_pilates ? Number(estado.dias_pilates) : null })
+  }
+  return filas
 }
 
 export default function AdminPlanes() {
@@ -56,26 +73,16 @@ export default function AdminPlanes() {
     })
   }
 
-  function toggleServicio(setEstado, servicioId) {
-    setEstado((prev) => {
-      const actual = prev.servicios[servicioId] || { incluido: false, dias_por_semana: '' }
-      return {
-        ...prev,
-        servicios: {
-          ...prev.servicios,
-          [servicioId]: { ...actual, incluido: !actual.incluido },
-        },
-      }
-    })
-  }
+  const idGimnasio = servicios.find((s) => s.nombre === 'Gimnasio')?.id
+  const idPilates = servicios.find((s) => s.nombre === 'Pilates')?.id
 
-  function cambiarDiasPorSemana(setEstado, servicioId, valor) {
-    setEstado((prev) => ({
+  function elegirTipoNuevo(tipo) {
+    setNuevo((prev) => ({
       ...prev,
-      servicios: {
-        ...prev.servicios,
-        [servicioId]: { ...prev.servicios[servicioId], dias_por_semana: valor },
-      },
+      tipo,
+      // Si el admin no tocó el nombre a mano, se lo autocompletamos
+      // según el tipo. Si ya lo cambió, lo respetamos.
+      nombre: prev.nombreTocado ? prev.nombre : nombrePorDefecto(tipo),
     }))
   }
 
@@ -83,9 +90,9 @@ export default function AdminPlanes() {
     e.preventDefault()
     setMensaje('')
 
-    const serviciosArray = aArrayServicios(nuevo.servicios)
+    const serviciosArray = armarServicios(nuevo, idGimnasio, idPilates)
     if (serviciosArray.length === 0) {
-      setMensaje('❌ Elegí al menos un servicio para el plan')
+      setMensaje('❌ No se encontraron los servicios base (Gimnasio/Pilates). Revisá que existan en la tabla servicios.')
       return
     }
 
@@ -94,7 +101,7 @@ export default function AdminPlanes() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nombre: nuevo.nombre,
+        nombre: nuevo.nombre || nombrePorDefecto(nuevo.tipo),
         precio: nuevo.precio ? Number(nuevo.precio) : null,
         servicios: serviciosArray,
       }),
@@ -112,13 +119,27 @@ export default function AdminPlanes() {
     cargarTodo()
   }
 
+  function tipoDePlan(plan) {
+    const nombres = plan.servicios.map((s) => s.nombre)
+    const tieneGim = nombres.includes('Gimnasio')
+    const tienePil = nombres.includes('Pilates')
+    if (tieneGim && tienePil) return 'ambos'
+    if (tienePil) return 'pilates'
+    return 'gimnasio'
+  }
+
   function empezarEdicion(plan) {
     setEditandoId(plan.id)
-    const mapa = {}
-    plan.servicios.forEach((s) => {
-      mapa[s.id] = { incluido: true, dias_por_semana: s.dias_por_semana || '' }
+    const tipo = tipoDePlan(plan)
+    const diasGim = plan.servicios.find((s) => s.nombre === 'Gimnasio')?.dias_por_semana || ''
+    const diasPil = plan.servicios.find((s) => s.nombre === 'Pilates')?.dias_por_semana || ''
+    setBorrador({
+      nombre: plan.nombre,
+      precio: plan.precio || '',
+      tipo,
+      dias_gimnasio: diasGim,
+      dias_pilates: diasPil,
     })
-    setBorrador({ nombre: plan.nombre, precio: plan.precio || '', servicios: mapa })
   }
 
   function cancelarEdicion() {
@@ -127,9 +148,9 @@ export default function AdminPlanes() {
   }
 
   async function guardarEdicion(id) {
-    const serviciosArray = aArrayServicios(borrador.servicios)
+    const serviciosArray = armarServicios(borrador, idGimnasio, idPilates)
     if (serviciosArray.length === 0) {
-      setMensaje('❌ Un plan necesita al menos un servicio')
+      setMensaje('❌ No se encontraron los servicios base (Gimnasio/Pilates)')
       return
     }
 
@@ -161,25 +182,53 @@ export default function AdminPlanes() {
     })
   }
 
-  function FilaServicio({ servicio, estado, onToggle, onDias }) {
-    const info = estado.servicios[servicio.id] || { incluido: false, dias_por_semana: '' }
+  function SelectorTipo({ estado, onElegirTipo, onCambiarDias }) {
     return (
-      <div className="flex items-center gap-2 text-sm">
-        <label className="flex items-center gap-1.5 w-32">
-          <input type="checkbox" checked={info.incluido} onChange={() => onToggle(servicio.id)} />
-          {servicio.nombre}
-        </label>
-        {info.incluido && (
-          <input
-            type="number"
-            min="1"
-            placeholder="Sin límite"
-            value={info.dias_por_semana}
-            onChange={(e) => onDias(servicio.id, e.target.value)}
-            className="w-28 px-2 py-1 rounded-lg border border-gray-300 text-xs"
-          />
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-2 flex-wrap">
+          {TIPOS.map((t) => (
+            <button
+              key={t.valor}
+              type="button"
+              onClick={() => onElegirTipo(t.valor)}
+              className={`text-sm font-semibold px-3.5 py-2 rounded-lg border-2 transition ${
+                estado.tipo === t.valor
+                  ? 'bg-black text-white border-black'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              {t.etiqueta}
+            </button>
+          ))}
+        </div>
+
+        {(estado.tipo === 'gimnasio' || estado.tipo === 'ambos') && (
+          <label className="flex items-center gap-2 text-sm">
+            Días de Gimnasio por semana:
+            <input
+              type="number"
+              min="1"
+              placeholder="Sin límite"
+              value={estado.dias_gimnasio}
+              onChange={(e) => onCambiarDias('dias_gimnasio', e.target.value)}
+              className="w-24 px-2 py-1 rounded-lg border border-gray-300 text-sm"
+            />
+          </label>
         )}
-        {info.incluido && <span className="text-xs text-gray-400">veces/semana</span>}
+
+        {(estado.tipo === 'pilates' || estado.tipo === 'ambos') && (
+          <label className="flex items-center gap-2 text-sm">
+            Días de Pilates por semana:
+            <input
+              type="number"
+              min="1"
+              placeholder="Sin límite"
+              value={estado.dias_pilates}
+              onChange={(e) => onCambiarDias('dias_pilates', e.target.value)}
+              className="w-24 px-2 py-1 rounded-lg border border-gray-300 text-sm"
+            />
+          </label>
+        )}
       </div>
     )
   }
@@ -191,17 +240,29 @@ export default function AdminPlanes() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
         <h1 className="text-2xl font-bold mb-1">Planes</h1>
         <p className="text-sm text-gray-500 mb-6">
-          Definí qué servicios incluye cada plan, su precio, y si tiene un tope de turnos por semana (dejá vacío para "sin límite").
+          Elegí el tipo de plan y, si querés, un tope de días por semana para cada actividad (dejá vacío para "sin límite").
         </p>
+
+        {(!idGimnasio || !idPilates) && !cargando && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-4 mb-6">
+            ⚠️ No encuentro los servicios "Gimnasio" y/o "Pilates" en la base. Revisá que hayas corrido{' '}
+            <code className="font-mono">migracion_pilates.sql</code> en Supabase.
+          </div>
+        )}
 
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
           <h2 className="text-lg font-semibold mb-3">Crear plan nuevo</h2>
           <form onSubmit={crearPlan} className="flex flex-col gap-3 max-w-sm">
+            <SelectorTipo
+              estado={nuevo}
+              onElegirTipo={elegirTipoNuevo}
+              onCambiarDias={(campo, valor) => setNuevo((prev) => ({ ...prev, [campo]: valor }))}
+            />
             <input
               type="text"
-              placeholder="Nombre del plan (ej: Combo Full)"
+              placeholder="Nombre del plan"
               value={nuevo.nombre}
-              onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
+              onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value, nombreTocado: true })}
               className="px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
               required
             />
@@ -212,18 +273,6 @@ export default function AdminPlanes() {
               onChange={(e) => setNuevo({ ...nuevo, precio: e.target.value })}
               className="px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
             />
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Incluye</span>
-              {servicios.map((s) => (
-                <FilaServicio
-                  key={s.id}
-                  servicio={s}
-                  estado={nuevo}
-                  onToggle={(id) => toggleServicio(setNuevo, id)}
-                  onDias={(id, v) => cambiarDiasPorSemana(setNuevo, id, v)}
-                />
-              ))}
-            </div>
             <button
               type="submit"
               disabled={guardando}
@@ -238,13 +287,21 @@ export default function AdminPlanes() {
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-lg font-semibold mb-3">Planes cargados ({planes.length})</h2>
           {cargando && <p className="text-sm text-gray-500">Cargando...</p>}
+          {!cargando && planes.length === 0 && (
+            <p className="text-sm text-gray-500">Todavía no creaste ningún plan.</p>
+          )}
 
           {planes.map((p) => {
             const enEdicion = editandoId === p.id
 
             if (enEdicion) {
               return (
-                <div key={p.id} className="flex flex-col gap-2 py-3 border-b border-gray-100 bg-gray-50 -mx-2 px-2 rounded-lg">
+                <div key={p.id} className="flex flex-col gap-3 py-3 border-b border-gray-100 bg-gray-50 -mx-2 px-2 rounded-lg">
+                  <SelectorTipo
+                    estado={borrador}
+                    onElegirTipo={(tipo) => setBorrador((prev) => ({ ...prev, tipo }))}
+                    onCambiarDias={(campo, valor) => setBorrador((prev) => ({ ...prev, [campo]: valor }))}
+                  />
                   <div className="flex gap-2 items-center flex-wrap">
                     <input
                       type="text"
@@ -260,17 +317,6 @@ export default function AdminPlanes() {
                       className="w-28 px-2.5 py-1.5 rounded-lg border border-gray-300 text-sm"
                       placeholder="Precio"
                     />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    {servicios.map((s) => (
-                      <FilaServicio
-                        key={s.id}
-                        servicio={s}
-                        estado={borrador}
-                        onToggle={(id) => toggleServicio(setBorrador, id)}
-                        onDias={(id, v) => cambiarDiasPorSemana(setBorrador, id, v)}
-                      />
-                    ))}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => guardarEdicion(p.id)} className="text-xs border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-white transition">Guardar</button>
@@ -289,7 +335,7 @@ export default function AdminPlanes() {
                   </span>
                   <div className="text-xs text-gray-500">
                     {p.servicios
-                      .map((s) => (s.dias_por_semana ? `${s.nombre} (${s.dias_por_semana}x/sem)` : s.nombre))
+                      .map((s) => (s.dias_por_semana ? `${s.nombre} (${s.dias_por_semana}x/sem)` : `${s.nombre} (sin límite)`))
                       .join(' + ')}
                     {p.precio ? ` · $${p.precio}/mes` : ''}
                   </div>
