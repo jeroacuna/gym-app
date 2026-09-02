@@ -1,6 +1,7 @@
 import { getIronSession } from 'iron-session'
 import { sessionOptions } from '../../lib/session'
 import { supabaseAdmin } from '../../lib/supabaseClient'
+import { generarReservasDeTurnosFijos } from '../../lib/turnosFijos'
 
 export default async function handler(req, res) {
   const session = await getIronSession(req, res, sessionOptions)
@@ -9,6 +10,13 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
+    // Antes de listar, nos aseguramos de que estén generadas las
+    // reservas de las próximas semanas según los turnos fijos del
+    // socio (si tiene). Así, con solo entrar al dashboard, ya le
+    // aparece reservado su lugar de siempre sin que tenga que hacer
+    // nada — el turno fijo "se materializa" solo.
+    await generarReservasDeTurnosFijos(session.usuario.id)
+
     // Traemos las reservas activas del usuario, desde hoy en adelante,
     // con el detalle del horario (día y hora) para mostrarlo lindo.
     const hoy = new Date().toISOString().slice(0, 10)
@@ -27,6 +35,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ reservas: reservas || [] })
   }
+
 
   if (req.method === 'POST') {
     const { horario_id, fecha } = req.body

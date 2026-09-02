@@ -17,6 +17,115 @@ export async function getServerSideProps({ req, res }) {
   return { props: {} }
 }
 
+const DIAS_LEGIBLES = { lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo' }
+
+function SeccionTurnosFijos({ socioId }) {
+  const [turnosFijos, setTurnosFijos] = useState([])
+  const [servicios, setServicios] = useState([])
+  const [horarios, setHorarios] = useState([])
+  const [servicioElegido, setServicioElegido] = useState('')
+  const [horarioElegido, setHorarioElegido] = useState('')
+  const [mensaje, setMensaje] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  useEffect(() => {
+    cargar()
+    fetch('/api/admin/servicios')
+      .then((r) => r.json())
+      .then((data) => setServicios(data.servicios || []))
+    fetch('/api/admin/horarios')
+      .then((r) => r.json())
+      .then((data) => setHorarios(data.horarios || []))
+  }, [socioId])
+
+  function cargar() {
+    fetch(`/api/admin/turnos-fijos?usuario_id=${socioId}`)
+      .then((r) => r.json())
+      .then((data) => setTurnosFijos(data.turnosFijos || []))
+  }
+
+  async function asignar(e) {
+    e.preventDefault()
+    if (!horarioElegido) return
+    setMensaje('')
+    setGuardando(true)
+    const res = await fetch('/api/admin/turnos-fijos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario_id: socioId, horario_id: horarioElegido }),
+    })
+    const data = await res.json()
+    setGuardando(false)
+    if (!res.ok) {
+      setMensaje(`❌ ${data.error}`)
+      return
+    }
+    setHorarioElegido('')
+    cargar()
+  }
+
+  async function quitar(turno) {
+    if (!window.confirm('¿Quitar este turno fijo? (las reservas ya generadas de semanas pasadas no se tocan)')) return
+    await fetch(`/api/admin/turnos-fijos?id=${turno.id}`, { method: 'DELETE' })
+    cargar()
+  }
+
+  const horariosDelServicio = horarios.filter((h) => h.servicio_id === servicioElegido && h.activo)
+
+  return (
+    <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+      <h2 className="text-lg font-semibold mb-1">Turnos fijos</h2>
+      <p className="text-xs text-gray-500 mb-3">
+        El socio queda anotado automáticamente todas las semanas en este horario, sin tener que reservar cada vez.
+      </p>
+
+      {turnosFijos.length === 0 && <p className="text-sm text-gray-500 mb-3">Todavía no tiene ningún turno fijo asignado.</p>}
+      {turnosFijos.map((t) => (
+        <div key={t.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 text-sm">
+          <span>{DIAS_LEGIBLES[t.dia_semana] || t.dia_semana} {t.hora_inicio.slice(0, 5)}–{t.hora_fin.slice(0, 5)} · {t.servicio_nombre}</span>
+          <button onClick={() => quitar(t)} className="text-xs border border-red-200 text-red-600 rounded-lg px-3 py-1.5 hover:bg-red-50 transition">
+            Quitar
+          </button>
+        </div>
+      ))}
+
+      <form onSubmit={asignar} className="flex flex-wrap gap-2 items-center mt-4">
+        <select
+          value={servicioElegido}
+          onChange={(e) => { setServicioElegido(e.target.value); setHorarioElegido('') }}
+          className="px-2.5 py-2 rounded-lg border border-gray-300 text-sm"
+        >
+          <option value="">Elegí servicio</option>
+          {servicios.map((s) => (
+            <option key={s.id} value={s.id}>{s.nombre}</option>
+          ))}
+        </select>
+        <select
+          value={horarioElegido}
+          onChange={(e) => setHorarioElegido(e.target.value)}
+          disabled={!servicioElegido}
+          className="px-2.5 py-2 rounded-lg border border-gray-300 text-sm disabled:opacity-50"
+        >
+          <option value="">Elegí horario</option>
+          {horariosDelServicio.map((h) => (
+            <option key={h.id} value={h.id}>
+              {DIAS_LEGIBLES[h.dia_semana] || h.dia_semana} {h.hora_inicio.slice(0, 5)}–{h.hora_fin.slice(0, 5)}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={guardando || !horarioElegido}
+          className="bg-black text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-brand transition disabled:opacity-50"
+        >
+          {guardando ? 'Asignando...' : 'Asignar turno fijo'}
+        </button>
+      </form>
+      {mensaje && <p className="text-sm mt-2">{mensaje}</p>}
+    </section>
+  )
+}
+
 export default function FichaSocio() {
   const router = useRouter()
   const { id } = router.query
@@ -128,6 +237,9 @@ export default function FichaSocio() {
             </div>
           ))}
         </section>
+
+        {/* ------------------ TURNOS FIJOS ------------------ */}
+        <SeccionTurnosFijos socioId={socio.id} />
 
         {/* ------------------ RESERVAS ------------------ */}
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
