@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     const { data: reservas, error } = await supabaseAdmin
       .from('reservas')
-      .select('id, fecha, horarios(hora_inicio, hora_fin, dia_semana)')
+      .select('id, horario_id, fecha, horarios(hora_inicio, hora_fin, dia_semana, servicio_id)')
       .eq('usuario_id', session.usuario.id)
       .eq('estado', 'activa')
       .gte('fecha', hoy)
@@ -33,9 +33,33 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Error al buscar tus reservas' })
     }
 
-    return res.status(200).json({ reservas: reservas || [] })
-  }
+    // Le sumamos el nombre del servicio (Gimnasio/Pilates) y si esa
+    // reserva puntual viene de un turno fijo, para que el socio sepa
+    // bien qué es cada cosa en su lista. Todo con consultas simples
+    // (sin cruces automáticos anidados) para no depender del caché de
+    // relaciones de Supabase.
+    const idsServicios = [...new Set((reservas || []).map((r) => r.horarios?.servicio_id).filter(Boolean))]
+    const { data: servicios } = idsServicios.length
+      ? await supabaseAdmin.from('servicios').select('id, nombre').in('id', idsServicios)
+      : { data: [] }
+    const servicioPorId = {}
+    ;(servicios || []).forEach((s) => { servicioPorId[s.id] = s.nombre })
 
+    const { data: turnosFijos } = await supabaseAdmin
+      .from('turnos_fijos')
+      .select('horario_id')
+      .eq('usuario_id', session.usuario.id)
+      .eq('activo', true)
+    const horariosFijos = new Set((turnosFijos || []).map((t) => t.horario_id))
+
+    const reservasConDetalle = (reservas || []).map((r) => ({
+      ...r,
+      servicio_nombre: r.horarios?.servicio_id ? servicioPorId[r.horarios.servicio_id] || '' : '',
+      es_fijo: horariosFijos.has(r.horario_id),
+    }))
+
+    return res.status(200).json({ reservas: reservasConDetalle })
+  }
 
   if (req.method === 'POST') {
     const { horario_id, fecha } = req.body
