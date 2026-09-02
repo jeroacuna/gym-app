@@ -15,7 +15,8 @@ export default async function handler(req, res) {
       .order('creado_en', { ascending: false })
 
     if (error) {
-      return res.status(500).json({ error: 'Error al buscar anuncios' })
+      console.error('Error GET anuncios:', error)
+      return res.status(500).json({ error: `Error al buscar anuncios: ${error.message}` })
     }
 
     return res.status(200).json({ anuncios: anuncios || [] })
@@ -34,7 +35,8 @@ export default async function handler(req, res) {
       .single()
 
     if (error) {
-      return res.status(500).json({ error: 'No se pudo crear el anuncio' })
+      console.error('Error POST anuncios:', error)
+      return res.status(500).json({ error: `No se pudo crear el anuncio: ${error.message}` })
     }
 
     return res.status(200).json({ anuncio: data })
@@ -50,7 +52,8 @@ export default async function handler(req, res) {
 
     const { error } = await supabaseAdmin.from('anuncios').update({ activo }).eq('id', id)
     if (error) {
-      return res.status(500).json({ error: 'No se pudo actualizar el anuncio' })
+      console.error('Error PUT anuncios:', error)
+      return res.status(500).json({ error: `No se pudo actualizar el anuncio: ${error.message}` })
     }
 
     return res.status(200).json({ ok: true })
@@ -64,7 +67,8 @@ export default async function handler(req, res) {
 
     const { error } = await supabaseAdmin.from('anuncios').delete().eq('id', id)
     if (error) {
-      return res.status(500).json({ error: 'No se pudo borrar el anuncio' })
+      console.error('Error DELETE anuncios:', error)
+      return res.status(500).json({ error: `No se pudo borrar el anuncio: ${error.message}` })
     }
 
     return res.status(200).json({ ok: true })
