@@ -9,7 +9,6 @@ import { useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
-// Tu función de servidor queda exactamente donde está, no la tocamos.
 export async function getServerSideProps({ req, res }) {
   const session = await getIronSession(req, res, sessionOptions)
   if (!session.usuario) {
@@ -18,35 +17,33 @@ export async function getServerSideProps({ req, res }) {
   return { props: { usuario: session.usuario } }
 }
 
-// Aquí es donde agregamos nuestra lógica interactiva
 export default function Dashboard({ usuario }) {
-  // 1. Declaramos los estados apenas arranca el componente
+  // 1. Tus estados originales y los nuevos estados unidos en un solo lugar
+  const [rutina, setRutina] = useState(null);
+  const [ejercicios, setEjercicios] = useState([]);
+  const [anuncios, setAnuncios] = useState([]);
+  
+  // Estados para el calendario y el modal
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // 2. Declaramos la función que abre la ventana flotante
+  // Función que abre la ventana flotante al hacer clic en el calendario
   const iniciarReserva = (fecha) => {
     setFechaSeleccionada(fecha);
     setIsModalOpen(true);
   };
 
-  // 3. Todo tu código visual va aquí adentro
   return (
-    <div>
+    <div className="min-h-screen bg-gray-100 p-6">
       {/* 
-        ¡IMPORTANTE!
-        Aquí debes dejar todo el código de tu Dashboard que ya teníamos funcionando 
-        (tu barra de navegación, el componente <Calendar /> y la lista de tus reservas).
+        Aquí va el contenido visual de tu dashboard (Navbar, Calendario, Tus Reservas, Rutinas, etc.)
+        Asegúrate de pasarle "onClickDay={iniciarReserva}" a tu componente <Calendar />
       */}
 
       {/* ------------------ MODAL DE RESERVA (Ventana flotante) ------------------ */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
-          {/* El comentario ahora está ADENTRO del div de fondo oscuro */}
-          
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-            {/* El comentario ahora está ADENTRO de la tarjeta blanca central */}
-            
             <h3 className="text-xl font-bold text-black mb-2">
               Nuevo Turno
             </h3>
@@ -63,18 +60,18 @@ export default function Dashboard({ usuario }) {
 
             {/* Botones de acción inferiores */}
             <div className="flex justify-end gap-3">
-              <Button 
-                variant="secondary" 
+              <button 
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
                 onClick={() => setIsModalOpen(false)}
               >
                 Cancelar
-              </Button>
-              <Button 
-                className="bg-red-600 text-white hover:bg-red-700 border-none"
+              </button>
+              <button 
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                 onClick={() => alert('Próximamente conectaremos esto a tu base de datos')}
               >
                 Confirmar Reserva
-              </Button>
+              </button>
             </div>
           </div>
         </div>
