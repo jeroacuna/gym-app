@@ -387,23 +387,45 @@ export default function Dashboard({ usuario }) {
           {mensaje && <p className="text-sm mt-4 font-medium">{mensaje}</p>}
         </Card>
 
-        {/* ------------------ MIS RESERVAS ------------------ */}
+{/* ------------------ MIS RESERVAS ------------------ */}
         <Card>
           <Eyebrow>Tu agenda</Eyebrow>
-          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4">Mis turnos reservados</h2>
+          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
+            Mis turnos reservados
+          </h2>
 
+          {/* Mensaje cuando no hay turnos */}
           {misReservas.length === 0 && (
-            <p className="text-sm text-concrete">Todavía no reservaste ningún turno. Arriba podés elegir actividad, día y horario.</p>
+            <p className="text-sm text-concrete">
+              Todavía no reservaste ningún turno. Arriba podés elegir actividad, día y horario.
+            </p>
           )}
+
+          {/* Lista de turnos reservados */}
           {misReservas.map((r) => (
-            <div key={r.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0">
+            <div key={r.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 bg-white">
               <div className="flex items-center gap-3">
+                {/* Barrita decorativa de color */}
                 <div className="w-2 h-8 bg-brand rounded-full" />
-                <span className="text-sm font-mono">
-                  {r.fecha} — {r.horarios.hora_inicio.slice(0, 5)} a {r.horarios.hora_fin.slice(0, 5)}
-                </span>
+                
+                {/* Nuevo contenedor flex-col para apilar la actividad y la fecha */}
+                <div className="flex flex-col">
+                  {/* Etiqueta de la actividad (Pilates o Gimnasio) */}
+                  <span className="text-xs font-bold text-red-600 uppercase tracking-wider mb-0.5">
+                    {r.horarios?.actividad || r.actividad || 'Gimnasio'}
+                  </span>
+                  
+                  {/* Fecha y hora */}
+                  <span className="text-sm font-mono text-gray-800">
+                    {r.fecha} — {r.horarios.hora_inicio.slice(0, 5)} a {r.horarios.hora_fin.slice(0, 5)}
+                  </span>
+                </div>
               </div>
-              <Button variant="secondary" onClick={() => cancelar(r.id)}>Cancelar</Button>
+              
+              {/* Botón de cancelar original */}
+              <Button variant="secondary" onClick={() => cancelar(r.id)}>
+                Cancelar
+              </Button>
             </div>
           ))}
         </Card>
