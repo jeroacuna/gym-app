@@ -9,6 +9,23 @@ import { useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
+// Tu función de servidor queda exactamente donde está, no la tocamos.
+export async function getServerSideProps({ req, res }) {
+  const session = await getIronSession(req, res, sessionOptions)
+  if (!session.usuario) {
+    return { redirect: { destination: '/login', permanent: false } }
+  }
+  return { props: { usuario: session.usuario } }
+}
+
+// Aquí es donde agregamos nuestra lógica interactiva
+import { useState } from 'react';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
+import { getIronSession } from 'iron-session';
+import { sessionOptions } from '../lib/session';
+// (Mantén aquí el resto de tus importaciones originales de componentes, como Card, Button, etc.)
+
 export async function getServerSideProps({ req, res }) {
   const session = await getIronSession(req, res, sessionOptions)
   if (!session.usuario) {
