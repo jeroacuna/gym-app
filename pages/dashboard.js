@@ -8,172 +8,13 @@ import Eyebrow from '../components/ui/Eyebrow'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 
-// Tu función de servidor queda exactamente donde está, no la tocamos.
-export async function getServerSideProps({ req, res }) {
-  const session = await getIronSession(req, res, sessionOptions)
-  if (!session.usuario) {
-    return { redirect: { destination: '/login', permanent: false } }
-  }
-  return { props: { usuario: session.usuario } }
-}
-
-// Aquí es donde agregamos nuestra lógica interactiva
-import { useState } from 'react';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
-import { getIronSession } from 'iron-session';
-import { sessionOptions } from '../lib/session';
-// (Mantén aquí el resto de tus importaciones originales de componentes, como Card, Button, etc.)
-
-export async function getServerSideProps({ req, res }) {
-  const session = await getIronSession(req, res, sessionOptions)
-  if (!session.usuario) {
-    return { redirect: { destination: '/login', permanent: false } }
-  }
-  return { props: { usuario: session.usuario } }
-}
-
-export default function Dashboard({ usuario }) {
-  // 1. Tus estados originales y los nuevos estados unidos en un solo lugar
-  const [rutina, setRutina] = useState(null);
-  const [ejercicios, setEjercicios] = useState([]);
-  const [anuncios, setAnuncios] = useState([]);
-  
-  // Estados para el calendario y el modal
-  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // Función que abre la ventana flotante al hacer clic en el calendario
-  const iniciarReserva = (fecha) => {
-    setFechaSeleccionada(fecha);
-    setIsModalOpen(true);
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      {/* Tu barra de navegación superior */}
-      <Navbar usuario={usuario} />
-
-      <div className="max-w-4xl mx-auto space-y-6 mt-6">
-        
-        {/* ------------------ CALENDARIO INTERACTIVO ------------------ */}
-        <Card>
-          <Eyebrow>Elige un día</Eyebrow>
-          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
-            Reservar nuevo turno
-          </h2>
-          
-          <div className="flex justify-center p-4">
-            <Calendar 
-              onChange={setFechaSeleccionada} 
-              value={fechaSeleccionada}
-              onClickDay={iniciarReserva} /* ¡Esto es clave para que abra el modal al hacer clic! */
-              minDate={new Date()} 
-              className="border-0 shadow-sm rounded-lg"
-            />
-          </div>
-        </Card>
-
-        {/* ------------------ MIS RESERVAS ANTERIORES ------------------ */}
-        <Card>
-          <Eyebrow>Tu agenda</Eyebrow>
-          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
-            Mis turnos reservados
-          </h2>
-
-          {misReservas.length === 0 && (
-            <p className="text-sm text-concrete">
-              Todavía no reservaste ningún turno. Hacé clic en el calendario de arriba para elegir fecha y horario.
-            </p>
-          )}
-
-          {misReservas.map((r) => (
-            <div key={r.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-8 bg-brand rounded-full" />
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-red-600 uppercase tracking-wider mb-0.5">
-                    {r.horarios?.actividad || r.actividad || 'Gimnasio'}
-                  </span>
-                  <span className="text-sm font-mono text-gray-800">
-                    {r.fecha} — {r.horarios.hora_inicio.slice(0, 5)} a {r.horarios.hora_fin.slice(0, 5)}
-                  </span>
-                </div>
-              </div>
-              <Button variant="secondary" onClick={() => cancelar(r.id)}>
-                Cancelar
-              </Button>
-            </div>
-          ))}
-        </Card>
-      </div>
-
-      {/* ------------------ MODAL DE RESERVA (Ventana flotante) ------------------ */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-            <h3 className="text-xl font-bold text-black mb-2">
-              Seleccionar Horario
-            </h3>
-            
-            <p className="text-gray-600 mb-4 font-medium">
-              Día: <span className="text-red-600">{fechaSeleccionada.toLocaleDateString('es-AR')}</span>
-            </p>
-
-            {/* Contenedor de la lista de horarios obtenidos de Supabase */}
-            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
-              {cargandoHorarios ? (
-                <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
-              ) : turnosDisponibles.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
-              ) : (
-                turnosDisponibles.map((turno) => (
-                  <div 
-                    key={turno.id} 
-                    className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
-                  >
-                    <div>
-                      <span className="block text-xs font-bold text-red-600 uppercase">
-                        {turno.actividad || 'Gimnasio'}
-                      </span>
-                      <span className="text-sm font-mono text-gray-800">
-                        {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
-                      </span>
-                    </div>
-                    
-                    <Button 
-                      variant="primary"
-                      onClick={() => alert(`Aquí reservaremos el turno con ID: ${turno.id}`)}
-                    >
-                      Reservar
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="flex justify-end">
-              <Button 
-                variant="secondary" 
-                onClick={() => setIsModalOpen(false)}
-              >
-                Cerrar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// Función para obtener la fecha actual en formato ISO (YYYY-MM-DD)
 function hoyISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
 const DIAS_ORDEN = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
-
 const BLOQUES_ORDEN = ['activacion', 'fuerza_1', 'fuerza_2', 'finalizador']
-
 const BLOQUES_INFO = {
   activacion: { label: 'Activación', color: '#0ea5e9' },
   fuerza_1: { label: 'Fuerza 1', color: '#e11d2e' },
@@ -201,7 +42,18 @@ function agruparPorBloque(ejercicios) {
   return grupos
 }
 
+// ------------------ AUTORIZACIÓN DEL SERVIDOR ------------------
+export async function getServerSideProps({ req, res }) {
+  const session = await getIronSession(req, res, sessionOptions)
+  if (!session.usuario) {
+    return { redirect: { destination: '/login', permanent: false } }
+  }
+  return { props: { usuario: session.usuario } }
+}
+
+// ------------------ COMPONENTE PRINCIPAL ------------------
 export default function Dashboard({ usuario }) {
+  // Estados originales de rutinas, anuncios y servicios
   const [rutina, setRutina] = useState(null)
   const [ejercicios, setEjercicios] = useState([])
   const [anuncios, setAnuncios] = useState([])
@@ -214,6 +66,13 @@ export default function Dashboard({ usuario }) {
   const [mensaje, setMensaje] = useState('')
   const [cargandoHorarios, setCargandoHorarios] = useState(false)
 
+  // Estados para el calendario interactivo y la ventana modal
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date())
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [turnosDisponibles, setTurnosDisponibles] = useState([])
+  const [cargandoModal, setCargandoModal] = useState(false)
+
+  // Carga inicial de datos al abrir el dashboard
   useEffect(() => {
     fetch('/api/mi-rutina')
       .then((r) => r.json())
@@ -243,6 +102,7 @@ export default function Dashboard({ usuario }) {
 
   const servicioIncluido = (id) => misServicios.some((s) => s.id === id)
 
+  // Cargar horarios al cambiar la fecha o servicio en el selector clásico
   useEffect(() => {
     if (!servicioElegido || !servicioIncluido(servicioElegido)) {
       setHorarios([])
@@ -268,6 +128,34 @@ export default function Dashboard({ usuario }) {
     fetch(`/api/horarios-disponibles?fecha=${fechaElegida}&servicio_id=${servicioElegido}`)
       .then((r) => r.json())
       .then((data) => setHorarios(data.horarios || []))
+  }
+
+  // Función que se ejecuta al hacer clic en un día del Calendario interactivo
+  const iniciarReserva = async (fecha) => {
+    setFechaSeleccionada(fecha)
+    setIsModalOpen(true)
+    setCargandoModal(true)
+
+    try {
+      const anio = fecha.getFullYear()
+      const mes = String(fecha.getMonth() + 1).padStart(2, '0')
+      const dia = String(fecha.getDate()).padStart(2, '0')
+      const fechaFormateada = `${anio}-${mes}-${dia}`
+
+      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}`)
+      const datos = await respuesta.json()
+
+      if (respuesta.ok) {
+        setTurnosDisponibles(datos.horarios || [])
+      } else {
+        setTurnosDisponibles([])
+      }
+    } catch (error) {
+      console.error("Error al cargar horarios:", error)
+      setTurnosDisponibles([])
+    } finally {
+      setCargandoModal(false)
+    }
   }
 
   async function reservar(horarioId) {
@@ -318,9 +206,10 @@ export default function Dashboard({ usuario }) {
           style={{ backgroundImage: "url('https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=1470&auto=format&fit=crop')" }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-transparent" />
-        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-8">
+<div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-8">
           <p className="font-mono text-brand text-xs uppercase tracking-widest mb-1">
-            {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {/* Forzamos el idioma español explícitamente para evitar conflictos */}
+            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
           <h1 className="font-display font-semibold text-3xl uppercase tracking-wide">
             Hola, {usuario.nombre}
@@ -329,6 +218,7 @@ export default function Dashboard({ usuario }) {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
+        
         {/* ------------------ ANUNCIOS ------------------ */}
         {anuncios.length > 0 && (
           <div className="flex flex-col gap-2">
@@ -341,7 +231,7 @@ export default function Dashboard({ usuario }) {
           </div>
         )}
 
-        {/* ------------------ RUTINA (solo si el plan incluye Gimnasio) ------------------ */}
+        {/* ------------------ RUTINA DE ENTRENAMIENTO ------------------ */}
         {tieneGimnasio && (
           <Card>
             <Eyebrow>Plan de entrenamiento</Eyebrow>
@@ -372,11 +262,7 @@ export default function Dashboard({ usuario }) {
                           {BLOQUES_ORDEN.filter((b) => porBloque[b]).map((bloque) => {
                             const info = BLOQUES_INFO[bloque]
                             return (
-                              <div
-                                key={bloque}
-                                className="rounded-xl border border-gray-100 overflow-hidden"
-                              >
-                                {/* ---- Encabezado del bloque ---- */}
+                              <div key={bloque} className="rounded-xl border border-gray-100 overflow-hidden">
                                 <div
                                   className="flex items-center gap-2 px-4 py-2"
                                   style={{ backgroundColor: info.color }}
@@ -386,7 +272,6 @@ export default function Dashboard({ usuario }) {
                                   </span>
                                 </div>
 
-                                {/* ---- Tabla tipo planilla ---- */}
                                 <div className="overflow-x-auto">
                                   <table className="w-full text-sm border-collapse">
                                     <thead>
@@ -407,10 +292,7 @@ export default function Dashboard({ usuario }) {
                                     </thead>
                                     <tbody>
                                       {porBloque[bloque].map((e, i) => (
-                                        <tr
-                                          key={e.id}
-                                          className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}
-                                        >
+                                        <tr key={e.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
                                           <td className="px-4 py-2.5 border-b border-gray-100 font-medium text-ink">
                                             {e.nombre}
                                           </td>
@@ -441,157 +323,51 @@ export default function Dashboard({ usuario }) {
           </Card>
         )}
 
-        {/* ------------------ RESERVAR TURNO ------------------ */}
+        {/* ------------------ CALENDARIO INTERACTIVO NUEVO ------------------ */}
         <Card>
-          <Eyebrow>Cupos limitados</Eyebrow>
-          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-1">Reservar turno</h2>
-
-          {todosLosServicios.length === 0 && (
-            <p className="text-sm text-concrete mt-3">Todavía no hay actividades cargadas.</p>
-          )}
-
-          {/* Pestañas SIEMPRE visibles (aunque el socio solo tenga una
-              actividad incluida en su plan), para que nunca quede
-              ambiguo qué está reservando. */}
-          {todosLosServicios.length > 0 && (
-            <div className="flex gap-2 my-3">
-              {todosLosServicios.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setServicioElegido(s.id)}
-                  className={`text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded-lg border-2 transition ${
-                    servicioElegido === s.id
-                      ? 'bg-ink text-white border-ink'
-                      : 'bg-white text-concrete border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  {s.nombre}
-                  {!servicioIncluido(s.id) && (
-                    <span className="ml-1.5 text-[10px] font-normal normal-case opacity-70">(no anotado)</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {servicioElegido && !servicioIncluido(servicioElegido) && (
-            <p className="text-sm text-concrete bg-gray-50 rounded-xl p-4">
-              No estás anotado a <strong>{nombreServicioElegido}</strong> todavía. Si te interesa sumarla a tu plan, consultá en recepción.
-            </p>
-          )}
-
-          {servicioElegido && servicioIncluido(servicioElegido) && (
-            <>
-              <p className="text-xs text-gray-400 mb-2">
-                Reservando en: <strong className="text-ink">{nombreServicioElegido}</strong>
-              </p>
-
-              <label className="block text-xs font-mono font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-                Elegí una fecha
-              </label>
-              <input
-                type="date"
-                value={fechaElegida}
-                min={hoyISO()}
-                onChange={(e) => setFechaElegida(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand"
-              />
-
-              {cargandoHorarios && <p className="text-sm text-concrete mt-4">Buscando horarios...</p>}
-              {!cargandoHorarios && horarios.length === 0 && (
-                <p className="text-sm text-concrete mt-4">No hay horarios de {nombreServicioElegido} configurados para ese día.</p>
-              )}
-
-              <div className="flex flex-wrap gap-3 mt-4">
-                {horarios.map((h) => {
-                  const casiLleno = h.disponible && h.capacidad_maxima - h.ocupados <= 2
-                  return (
-                    <div
-                      key={h.id}
-                      className={`rounded-xl p-4 w-40 border-2 transition ${
-                        !h.disponible
-                          ? 'border-gray-100 bg-gray-50'
-                          : casiLleno
-                          ? 'border-brand/30 bg-brand-light'
-                          : 'border-gray-100'
-                      }`}
-                    >
-                      <strong className="block font-mono text-sm">{h.hora_inicio.slice(0, 5)}–{h.hora_fin.slice(0, 5)}</strong>
-                      <p className={`text-2xl font-display font-semibold mt-1 ${casiLleno ? 'text-brand' : 'text-ink'}`}>
-                        {h.capacidad_maxima - h.ocupados}
-                        <span className="text-xs text-gray-400 font-sans font-normal"> lugares</span>
-                      </p>
-                      <Button
-                        onClick={() => reservar(h.id)}
-                        disabled={!h.disponible}
-                        variant="primary"
-                        className="mt-3 w-full text-sm py-2 uppercase tracking-wide text-xs"
-                      >
-                        {h.disponible ? `Reservar ${nombreServicioElegido}` : 'Completo'}
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
-
-          {mensaje && <p className="text-sm mt-4 font-medium">{mensaje}</p>}
-        </Card>
-        {/* ------------------ CALENDARIO DE RESERVAS ------------------ */}
-        <Card className="mb-8">
           <Eyebrow>Elige un día</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
             Reservar nuevo turno
           </h2>
           
           <div className="flex justify-center p-4">
-            <Calendar 
+         <Calendar 
               onChange={setFechaSeleccionada} 
               value={fechaSeleccionada}
               onClickDay={iniciarReserva}
-              minDate={new Date()} // Esto desactiva todos los días del pasado automáticamente
+              minDate={new Date()} 
+              locale="es-AR" /* <-- Añade esta línea para forzar el español en los meses */
               className="border-0 shadow-sm rounded-lg"
             />
           </div>
         </Card>
 
-{/* ------------------ MIS RESERVAS ------------------ */}
+        {/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
         <Card>
           <Eyebrow>Tu agenda</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
             Mis turnos reservados
           </h2>
 
-          {/* Mensaje cuando no hay turnos */}
           {misReservas.length === 0 && (
             <p className="text-sm text-concrete">
-              Todavía no reservaste ningún turno. Arriba podés elegir actividad, día y horario.
+              Todavía no reservaste ningún turno. Hacé clic en el calendario de arriba para elegir fecha.
             </p>
           )}
 
-          {/* Lista de turnos reservados */}
           {misReservas.map((r) => (
             <div key={r.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 bg-white">
               <div className="flex items-center gap-3">
-                {/* Barrita decorativa de color */}
                 <div className="w-2 h-8 bg-brand rounded-full" />
-                
-                {/* Nuevo contenedor flex-col para apilar la actividad y la fecha */}
                 <div className="flex flex-col">
-                  {/* Etiqueta de la actividad (Pilates o Gimnasio) */}
                   <span className="text-xs font-bold text-red-600 uppercase tracking-wider mb-0.5">
                     {r.horarios?.actividad || r.actividad || 'Gimnasio'}
                   </span>
-                  
-                  {/* Fecha y hora */}
                   <span className="text-sm font-mono text-gray-800">
-                    {r.fecha} — {r.horarios.hora_inicio.slice(0, 5)} a {r.horarios.hora_fin.slice(0, 5)}
+                    {r.fecha} — {r.horarios?.hora_inicio?.slice(0, 5)} a {r.horarios?.hora_fin?.slice(0, 5)}
                   </span>
                 </div>
               </div>
-              
-              {/* Botón de cancelar original */}
               <Button variant="secondary" onClick={() => cancelar(r.id)}>
                 Cancelar
               </Button>
@@ -599,6 +375,62 @@ export default function Dashboard({ usuario }) {
           ))}
         </Card>
       </div>
+
+      {/* ------------------ MODAL FLOTANTE DE HORARIOS ------------------ */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h3 className="text-xl font-bold text-black mb-2">
+              Seleccionar Horario
+            </h3>
+            
+            <p className="text-gray-600 mb-4 font-medium">
+              Día: <span className="text-red-600">{fechaSeleccionada.toLocaleDateString('es-AR')}</span>
+            </p>
+
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
+              {cargandoModal ? (
+                <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
+              ) : turnosDisponibles.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
+              ) : (
+                turnosDisponibles.map((turno) => (
+                  <div 
+                    key={turno.id} 
+                    className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
+                  >
+                    <div>
+                      <span className="block text-xs font-bold text-red-600 uppercase">
+                        {turno.actividad || 'Gimnasio'}
+                      </span>
+                      <span className="text-sm font-mono text-gray-800">
+                        {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
+                      </span>
+                    </div>
+                    
+                    <Button 
+                      variant="primary"
+                      className="text-sm uppercase tracking-wide"
+                      onClick={() => alert(`Aquí guardaremos la reserva con el ID de horario: ${turno.id}`)}
+                    >
+                      Reservar
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button 
+                variant="secondary" 
+                onClick={() => setIsModalOpen(false)}
+              >
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
