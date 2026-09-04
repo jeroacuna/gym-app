@@ -137,13 +137,18 @@ export default function Dashboard({ usuario }) {
     setCargandoModal(true)
 
     try {
+      // Ajustamos para tomar la fecha local exacta y evitar desfases horarios
       const anio = fecha.getFullYear()
       const mes = String(fecha.getMonth() + 1).padStart(2, '0')
       const dia = String(fecha.getDate()).padStart(2, '0')
       const fechaFormateada = `${anio}-${mes}-${dia}`
 
+      console.log("Fecha consultada desde el calendario:", fechaFormateada); // <-- Esto te mostrará la fecha en la consola
+
       const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}`)
       const datos = await respuesta.json()
+
+      console.log("Datos recibidos de la API:", datos); // <-- Esto te mostrará si la API devuelve turnos o un array vacío
 
       if (respuesta.ok) {
         setTurnosDisponibles(datos.horarios || [])
@@ -158,27 +163,34 @@ export default function Dashboard({ usuario }) {
     }
   }
 
-  async function reservar(horarioId) {
+  // Función para confirmar la reserva desde el Modal interactivo conectada a Supabase
+  async function reservarDesdeModal(horarioId) {
     setMensaje('')
+    
+    const anio = fechaSeleccionada.getFullYear()
+    const mes = String(fechaSeleccionada.getMonth() + 1).padStart(2, '0')
+    const dia = String(fechaSeleccionada.getDate()).padStart(2, '0')
+    const fechaFormateada = `${anio}-${mes}-${dia}`
+
     const res = await fetch('/api/reservas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ horario_id: horarioId, fecha: fechaElegida }),
+      body: JSON.stringify({ horario_id: horarioId, fecha: fechaFormateada }),
     })
     const data = await res.json()
 
     if (!res.ok) {
-      setMensaje(`❌ ${data.error}`)
+      alert(`❌ Error al reservar: ${data.error}`)
       return
     }
 
     if (data.ajustada) {
-      setMensaje(`⚠️ Ese horario ya pasó por hoy — te reservamos para el ${data.fecha_final} en su lugar`)
+      alert(`⚠️ Ese horario ya pasó por hoy — te reservamos para el ${data.fecha_final}`)
     } else {
-      setMensaje('✅ Reserva confirmada')
+      alert('✅ ¡Turno reservado con éxito!')
     }
 
-    recargarHorarios()
+    setIsModalOpen(false)
     cargarMisReservas()
   }
 
@@ -193,7 +205,6 @@ export default function Dashboard({ usuario }) {
   }
 
   const tieneGimnasio = misServicios.some((s) => s.nombre === 'Gimnasio')
-  const nombreServicioElegido = todosLosServicios.find((s) => s.id === servicioElegido)?.nombre || ''
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -206,9 +217,8 @@ export default function Dashboard({ usuario }) {
           style={{ backgroundImage: "url('https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=1470&auto=format&fit=crop')" }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-transparent" />
-<div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-8">
           <p className="font-mono text-brand text-xs uppercase tracking-widest mb-1">
-            {/* Forzamos el idioma español explícitamente para evitar conflictos */}
             {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
           <h1 className="font-display font-semibold text-3xl uppercase tracking-wide">
@@ -323,7 +333,7 @@ export default function Dashboard({ usuario }) {
           </Card>
         )}
 
-        {/* ------------------ CALENDARIO INTERACTIVO NUEVO ------------------ */}
+        {/* ------------------ CALENDARIO INTERACTIVO RESTAURADO ------------------ */}
         <Card>
           <Eyebrow>Elige un día</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
@@ -331,12 +341,12 @@ export default function Dashboard({ usuario }) {
           </h2>
           
           <div className="flex justify-center p-4">
-         <Calendar 
+            <Calendar 
               onChange={setFechaSeleccionada} 
               value={fechaSeleccionada}
               onClickDay={iniciarReserva}
               minDate={new Date()} 
-              locale="es-AR" /* <-- Añade esta línea para forzar el español en los meses */
+              locale="es-AR"
               className="border-0 shadow-sm rounded-lg"
             />
           </div>
@@ -394,29 +404,36 @@ export default function Dashboard({ usuario }) {
               ) : turnosDisponibles.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
               ) : (
-                turnosDisponibles.map((turno) => (
-                  <div 
-                    key={turno.id} 
-                    className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
-                  >
-                    <div>
-                      <span className="block text-xs font-bold text-red-600 uppercase">
-                        {turno.actividad || 'Gimnasio'}
-                      </span>
-                      <span className="text-sm font-mono text-gray-800">
-                        {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
-                      </span>
-                    </div>
-                    
-                    <Button 
-                      variant="primary"
-                      className="text-sm uppercase tracking-wide"
-                      onClick={() => alert(`Aquí guardaremos la reserva con el ID de horario: ${turno.id}`)}
+                turnosDisponibles.map((turno) => {
+                  // Buscamos el nombre real de la actividad comparando los IDs
+                  const servicioDelTurno = todosLosServicios.find((s) => s.id === turno.servicio_id);
+                  const nombreActividad = servicioDelTurno ? servicioDelTurno.nombre : 'Gimnasio';
+
+                  return (
+                    <div 
+                      key={turno.id} 
+                      className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
                     >
-                      Reservar
-                    </Button>
-                  </div>
-                ))
+                      <div>
+                        {/* Imprimimos el nombre dinámico que acabamos de evaluar */}
+                        <span className="block text-xs font-bold text-red-600 uppercase">
+                          {nombreActividad}
+                        </span>
+                        <span className="text-sm font-mono text-gray-800">
+                          {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
+                        </span>
+                      </div>
+                      
+                      <Button 
+                        variant="primary"
+                        className="text-sm uppercase tracking-wide"
+                        onClick={() => reservarDesdeModal(turno.id)}
+                      >
+                        Reservar
+                      </Button>
+                    </div>
+                  );
+                })
               )}
             </div>
 

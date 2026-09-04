@@ -92,23 +92,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Falta la fecha' })
   }
 
-  if (!servicio_id) {
-    return res.status(400).json({ error: 'Falta el servicio (gimnasio o pilates)' })
-  }
-
   // OJO con esto: parseamos agregando "T00:00:00" para que JavaScript
   // interprete la fecha en horario local y no nos corra un día para
   // atrás por husos horarios (un bug clásico y molesto).
   const fechaObj = new Date(`${fecha}T00:00:00`)
   const diaSemana = DIAS[fechaObj.getDay()]
 
-  const { data: horarios, error } = await supabaseAdmin
+  // 1. Iniciamos la consulta base buscando los turnos por el día de la semana
+  let query = supabaseAdmin
     .from('horarios')
-    .select('id, hora_inicio, hora_fin, capacidad_maxima')
+    .select('id, hora_inicio, hora_fin, capacidad_maxima, servicio_id')
     .eq('dia_semana', diaSemana)
-    .eq('servicio_id', servicio_id)
     .eq('activo', true)
     .order('hora_inicio', { ascending: true })
+
+  // 2. Si nos pasan un servicio_id (selector clásico), filtramos por él.
+  // Si no nos pasan nada (calendario nuevo), se buscan TODOS los de la fecha.
+  if (servicio_id) {
+    query = query.eq('servicio_id', servicio_id)
+  }
+
+  const { data: horarios, error } = await query
 
   if (error) {
     return res.status(500).json({ error: 'Error al buscar horarios' })
@@ -132,16 +136,17 @@ export default async function handler(req, res) {
       hora_inicio: h.hora_inicio,
       hora_fin: h.hora_fin,
       capacidad_maxima: h.capacidad_maxima,
+      servicio_id: h.servicio_id,
       ocupados,
       disponible: ocupados < h.capacidad_maxima,
     }
   })
 
-  // Si ninguno de los turnos de ese día tiene lugar (o directamente no
-  // hay turnos ese día), buscamos el próximo que sí tenga cupo.
+  // 3. Si no hay lugar y tenemos el servicio_id, buscamos el próximo disponible
   const hayLugarEseDia = resultado.some((h) => h.disponible)
   let proximoDisponible = null
-  if (!hayLugarEseDia) {
+  
+  if (!hayLugarEseDia && servicio_id) {
     proximoDisponible = await buscarProximoDisponible(servicio_id, fecha)
   }
 
