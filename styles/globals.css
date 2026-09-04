@@ -5,3 +5,31 @@
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
+/* --- Personalización de react-calendar para el Gimnasio --- */
+.react-calendar {
+  font-family: inherit; /* Hereda la fuente de tu proyecto */
+  border: 1px solid #e5e7eb; /* Borde gris muy suave */
+  border-radius: 0.5rem;
+  padding: 10px;
+}
+
+/* Color rojo para el día seleccionado */
+.react-calendar__tile--active {
+  background: #dc2626 !important; /* bg-red-600 de Tailwind */
+  color: white !important;
+  font-weight: bold;
+  border-radius: 0.25rem;
+}
+
+/* Efecto al pasar el mouse por encima de un día disponible */
+.react-calendar__tile:enabled:hover,
+.react-calendar__tile:enabled:focus {
+  background: #fca5a5; /* Un rojo claro */
+  border-radius: 0.25rem;
+}
+
+/* Desactivar estilos de los días del pasado (gris claro) */
+.react-calendar__tile:disabled {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+}

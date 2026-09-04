@@ -5,13 +5,82 @@ import Navbar from '../components/Navbar'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Eyebrow from '../components/ui/Eyebrow'
+import { useState } from 'react';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
+// Tu función de servidor queda exactamente donde está, no la tocamos.
 export async function getServerSideProps({ req, res }) {
   const session = await getIronSession(req, res, sessionOptions)
   if (!session.usuario) {
     return { redirect: { destination: '/login', permanent: false } }
   }
   return { props: { usuario: session.usuario } }
+}
+
+// Aquí es donde agregamos nuestra lógica interactiva
+export default function Dashboard({ usuario }) {
+  // 1. Declaramos los estados apenas arranca el componente
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // 2. Declaramos la función que abre la ventana flotante
+  const iniciarReserva = (fecha) => {
+    setFechaSeleccionada(fecha);
+    setIsModalOpen(true);
+  };
+
+  // 3. Todo tu código visual va aquí adentro
+  return (
+    <div>
+      {/* 
+        ¡IMPORTANTE!
+        Aquí debes dejar todo el código de tu Dashboard que ya teníamos funcionando 
+        (tu barra de navegación, el componente <Calendar /> y la lista de tus reservas).
+      */}
+
+      {/* ------------------ MODAL DE RESERVA (Ventana flotante) ------------------ */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+          {/* El comentario ahora está ADENTRO del div de fondo oscuro */}
+          
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            {/* El comentario ahora está ADENTRO de la tarjeta blanca central */}
+            
+            <h3 className="text-xl font-bold text-black mb-2">
+              Nuevo Turno
+            </h3>
+            
+            <p className="text-gray-600 mb-6 font-medium">
+              Día seleccionado: <span className="text-red-600">{fechaSeleccionada.toLocaleDateString('es-AR')}</span>
+            </p>
+
+            <div className="p-4 bg-gray-50 rounded border border-gray-100 mb-6">
+              <p className="text-sm text-gray-500 text-center">
+                Aquí programaremos la lista de horarios disponibles en el siguiente paso.
+              </p>
+            </div>
+
+            {/* Botones de acción inferiores */}
+            <div className="flex justify-end gap-3">
+              <Button 
+                variant="secondary" 
+                onClick={() => setIsModalOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                className="bg-red-600 text-white hover:bg-red-700 border-none"
+                onClick={() => alert('Próximamente conectaremos esto a tu base de datos')}
+              >
+                Confirmar Reserva
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function hoyISO() {
@@ -385,6 +454,23 @@ export default function Dashboard({ usuario }) {
           )}
 
           {mensaje && <p className="text-sm mt-4 font-medium">{mensaje}</p>}
+        </Card>
+        {/* ------------------ CALENDARIO DE RESERVAS ------------------ */}
+        <Card className="mb-8">
+          <Eyebrow>Elige un día</Eyebrow>
+          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
+            Reservar nuevo turno
+          </h2>
+          
+          <div className="flex justify-center p-4">
+            <Calendar 
+              onChange={setFechaSeleccionada} 
+              value={fechaSeleccionada}
+              onClickDay={iniciarReserva}
+              minDate={new Date()} // Esto desactiva todos los días del pasado automáticamente
+              className="border-0 shadow-sm rounded-lg"
+            />
+          </div>
         </Card>
 
 {/* ------------------ MIS RESERVAS ------------------ */}
