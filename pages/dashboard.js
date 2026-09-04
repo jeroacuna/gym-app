@@ -5,9 +5,8 @@ import Navbar from '../components/Navbar'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Eyebrow from '../components/ui/Eyebrow'
-import { useState } from 'react';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
+import Calendar from 'react-calendar'
+import 'react-calendar/dist/Calendar.css'
 
 // Tu función de servidor queda exactamente donde está, no la tocamos.
 export async function getServerSideProps({ req, res }) {
@@ -52,43 +51,114 @@ export default function Dashboard({ usuario }) {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      {/* 
-        Aquí va el contenido visual de tu dashboard (Navbar, Calendario, Tus Reservas, Rutinas, etc.)
-        Asegúrate de pasarle "onClickDay={iniciarReserva}" a tu componente <Calendar />
-      */}
+      {/* Tu barra de navegación superior */}
+      <Navbar usuario={usuario} />
+
+      <div className="max-w-4xl mx-auto space-y-6 mt-6">
+        
+        {/* ------------------ CALENDARIO INTERACTIVO ------------------ */}
+        <Card>
+          <Eyebrow>Elige un día</Eyebrow>
+          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
+            Reservar nuevo turno
+          </h2>
+          
+          <div className="flex justify-center p-4">
+            <Calendar 
+              onChange={setFechaSeleccionada} 
+              value={fechaSeleccionada}
+              onClickDay={iniciarReserva} /* ¡Esto es clave para que abra el modal al hacer clic! */
+              minDate={new Date()} 
+              className="border-0 shadow-sm rounded-lg"
+            />
+          </div>
+        </Card>
+
+        {/* ------------------ MIS RESERVAS ANTERIORES ------------------ */}
+        <Card>
+          <Eyebrow>Tu agenda</Eyebrow>
+          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
+            Mis turnos reservados
+          </h2>
+
+          {misReservas.length === 0 && (
+            <p className="text-sm text-concrete">
+              Todavía no reservaste ningún turno. Hacé clic en el calendario de arriba para elegir fecha y horario.
+            </p>
+          )}
+
+          {misReservas.map((r) => (
+            <div key={r.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 bg-white">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-8 bg-brand rounded-full" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-red-600 uppercase tracking-wider mb-0.5">
+                    {r.horarios?.actividad || r.actividad || 'Gimnasio'}
+                  </span>
+                  <span className="text-sm font-mono text-gray-800">
+                    {r.fecha} — {r.horarios.hora_inicio.slice(0, 5)} a {r.horarios.hora_fin.slice(0, 5)}
+                  </span>
+                </div>
+              </div>
+              <Button variant="secondary" onClick={() => cancelar(r.id)}>
+                Cancelar
+              </Button>
+            </div>
+          ))}
+        </Card>
+      </div>
 
       {/* ------------------ MODAL DE RESERVA (Ventana flotante) ------------------ */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
             <h3 className="text-xl font-bold text-black mb-2">
-              Nuevo Turno
+              Seleccionar Horario
             </h3>
             
-            <p className="text-gray-600 mb-6 font-medium">
-              Día seleccionado: <span className="text-red-600">{fechaSeleccionada.toLocaleDateString('es-AR')}</span>
+            <p className="text-gray-600 mb-4 font-medium">
+              Día: <span className="text-red-600">{fechaSeleccionada.toLocaleDateString('es-AR')}</span>
             </p>
 
-            <div className="p-4 bg-gray-50 rounded border border-gray-100 mb-6">
-              <p className="text-sm text-gray-500 text-center">
-                Aquí programaremos la lista de horarios disponibles en el siguiente paso.
-              </p>
+            {/* Contenedor de la lista de horarios obtenidos de Supabase */}
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
+              {cargandoHorarios ? (
+                <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
+              ) : turnosDisponibles.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
+              ) : (
+                turnosDisponibles.map((turno) => (
+                  <div 
+                    key={turno.id} 
+                    className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
+                  >
+                    <div>
+                      <span className="block text-xs font-bold text-red-600 uppercase">
+                        {turno.actividad || 'Gimnasio'}
+                      </span>
+                      <span className="text-sm font-mono text-gray-800">
+                        {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
+                      </span>
+                    </div>
+                    
+                    <Button 
+                      variant="primary"
+                      onClick={() => alert(`Aquí reservaremos el turno con ID: ${turno.id}`)}
+                    >
+                      Reservar
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
 
-            {/* Botones de acción inferiores */}
-            <div className="flex justify-end gap-3">
-              <button 
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            <div className="flex justify-end">
+              <Button 
+                variant="secondary" 
                 onClick={() => setIsModalOpen(false)}
               >
-                Cancelar
-              </button>
-              <button 
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                onClick={() => alert('Próximamente conectaremos esto a tu base de datos')}
-              >
-                Confirmar Reserva
-              </button>
+                Cerrar
+              </Button>
             </div>
           </div>
         </div>
@@ -96,7 +166,6 @@ export default function Dashboard({ usuario }) {
     </div>
   );
 }
-
 function hoyISO() {
   return new Date().toISOString().slice(0, 10)
 }
