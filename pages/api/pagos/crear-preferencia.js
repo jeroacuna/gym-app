@@ -50,7 +50,6 @@ export default async function handler(req, res) {
       monto,
       baseUrl,
     })
-
     return res.status(200).json({ url: initPoint })
   } catch (err) {
     console.error('Error al crear preferencia:', err)
