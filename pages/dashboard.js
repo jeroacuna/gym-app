@@ -413,7 +413,7 @@ export default function Dashboard({ usuario }) {
           </div>
         </Card>
 
-        {/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
+{/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
         <Card>
           <Eyebrow>Tu agenda</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
@@ -426,29 +426,40 @@ export default function Dashboard({ usuario }) {
             </p>
           )}
 
-          {misReservas.map((r) => (
-            <div key={r.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 bg-white">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-8 bg-brand rounded-full" />
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-red-600 uppercase tracking-wider mb-0.5 flex items-center gap-1.5">
-                    {r.servicio_nombre || 'Gimnasio'}
-                    {r.es_fijo && (
-                      <span className="bg-gray-100 text-gray-500 text-[10px] font-semibold px-1.5 py-0.5 rounded-full normal-case">
-                        Fijo
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-sm font-mono text-gray-800">
-                    {r.fecha} — {r.horarios?.hora_inicio?.slice(0, 5)} a {r.horarios?.hora_fin?.slice(0, 5)}
-                  </span>
+          {misReservas.map((r) => {
+            // Formateamos la fecha de manera limpia y compacta (Ej: "lun. 14/9")
+            const fechaFormateada = r.fecha 
+              ? new Date(`${r.fecha}T00:00:00`).toLocaleDateString('es-AR', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'numeric',
+                })
+              : '';
+
+            return (
+              <div key={r.id} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-8 bg-brand rounded-full" />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-red-600 uppercase tracking-wider mb-0.5 flex items-center gap-1.5">
+                      {r.servicio_nombre || 'Gimnasio'}
+                      {r.es_fijo && (
+                        <span className="bg-gray-100 text-gray-500 text-[10px] font-semibold px-1.5 py-0.5 rounded-full normal-case">
+                          Fijo
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-sm font-mono text-gray-800">
+                      {fechaFormateada} — {r.horarios?.hora_inicio?.slice(0, 5)} a {r.horarios?.hora_fin?.slice(0, 5)}
+                    </span>
+                  </div>
                 </div>
+                <Button variant="secondary" onClick={() => cancelar(r.id)}>
+                  Cancelar
+                </Button>
               </div>
-              <Button variant="secondary" onClick={() => cancelar(r.id)}>
-                Cancelar
-              </Button>
-            </div>
-          ))}
+            );
+          })}
         </Card>
       </div>
 

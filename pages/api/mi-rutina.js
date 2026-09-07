@@ -1,30 +1,37 @@
-import { getIronSession } from 'iron-session'
-import { sessionOptions } from '../../lib/session'
 import { supabaseAdmin } from '../../lib/supabaseClient'
 
 export default async function handler(req, res) {
-  const session = await getIronSession(req, res, sessionOptions)
-  if (!session.usuario) {
-    return res.status(401).json({ error: 'No autenticado' })
+  // Solo permitimos peticiones de tipo PUT para actualizar registros
+  if (req.method !== 'PUT') {
+    return res.status(405).json({ error: 'Método no permitido' })
   }
 
-  const { data: rutina } = await supabaseAdmin
-    .from('rutinas')
-    .select('id, nombre')
-    .eq('usuario_id', session.usuario.id)
-    .eq('activa', true)
-    .single()
+  try {
+    const { ejercicioId, peso, repeticiones } = req.body
 
-  if (!rutina) {
-    // No es un error: simplemente todavía no le cargaron una rutina.
-    return res.status(200).json({ rutina: null, ejercicios: [] })
+    if (!ejercicioId) {
+      return res.status(400).json({ error: 'Falta el ID del ejercicio' })
+    }
+
+    // Actualizamos los valores en la tabla de ejercicios de la rutina
+    const { data, error } = await supabaseAdmin
+      .from('ejercicios_rutina') // Ajusta el nombre de tu tabla si difiere levemente
+      .update({ 
+        peso: peso, 
+        repeticiones: repeticiones 
+      })
+      .eq('id', ejercicioId)
+      .select()
+
+    if (error) {
+      console.error('Error al actualizar rutina en Supabase:', error)
+      return res.status(500).json({ error: 'No se pudo actualizar el ejercicio' })
+    }
+
+    return res.status(200).json({ ok: true, ejercicio: data[0] })
+
+  } catch (err) {
+    console.error('Error en el servidor al actualizar rutina:', err)
+    return res.status(500).json({ error: 'Error interno del servidor' })
   }
-
-  const { data: ejercicios } = await supabaseAdmin
-    .from('ejercicios')
-    .select('id, nombre, series, repeticiones, peso_sugerido, dia_semana, bloque, orden')
-    .eq('rutina_id', rutina.id)
-    .order('orden', { ascending: true })
-
-  return res.status(200).json({ rutina, ejercicios: ejercicios || [] })
 }
