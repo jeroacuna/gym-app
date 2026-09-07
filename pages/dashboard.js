@@ -65,12 +65,16 @@ export default function Dashboard({ usuario }) {
   const [misReservas, setMisReservas] = useState([])
   const [mensaje, setMensaje] = useState('')
   const [cargandoHorarios, setCargandoHorarios] = useState(false)
+  const [miPago, setMiPago] = useState(null) // null = cargando, true/false = pagado o no
+  const [generandoLinkDePago, setGenerandoLinkDePago] = useState(false)
 
   // Estados para el calendario interactivo y la ventana modal
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date())
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [turnosDisponibles, setTurnosDisponibles] = useState([])
   const [cargandoModal, setCargandoModal] = useState(false)
+  const [servicioModal, setServicioModal] = useState(null) // qué actividad se está reservando en el modal
+  const [proximoDisponibleModal, setProximoDisponibleModal] = useState(null)
 
   // Carga inicial de datos al abrir el dashboard
   useEffect(() => {
@@ -85,6 +89,10 @@ export default function Dashboard({ usuario }) {
       .then((r) => r.json())
       .then((data) => setAnuncios(data.anuncios || []))
 
+    fetch('/api/mi-pago')
+      .then((r) => r.json())
+      .then((data) => setMiPago(data.pagado))
+
     fetch('/api/servicios')
       .then((r) => r.json())
       .then((data) => {
@@ -95,7 +103,11 @@ export default function Dashboard({ usuario }) {
 
     fetch('/api/mi-plan')
       .then((r) => r.json())
-      .then((data) => setMisServicios(data.servicios || []))
+      .then((data) => {
+        const servicios = data.servicios || []
+        setMisServicios(servicios)
+        setServicioModal((prev) => prev || (servicios[0] && servicios[0].id))
+      })
 
     cargarMisReservas()
   }, [])
@@ -131,10 +143,19 @@ export default function Dashboard({ usuario }) {
   }
 
   // Función que se ejecuta al hacer clic en un día del Calendario interactivo
-  const iniciarReserva = async (fecha) => {
+  const iniciarReserva = async (fecha, servicioForzado) => {
+    const servicioABuscar = servicioForzado || servicioModal
     setFechaSeleccionada(fecha)
     setIsModalOpen(true)
     setCargandoModal(true)
+    setProximoDisponibleModal(null)
+
+    if (!servicioABuscar) {
+      // No tiene ningún servicio incluido en su plan — no hay nada que buscar.
+      setTurnosDisponibles([])
+      setCargandoModal(false)
+      return
+    }
 
     try {
       // Ajustamos para tomar la fecha local exacta y evitar desfases horarios
@@ -143,15 +164,12 @@ export default function Dashboard({ usuario }) {
       const dia = String(fecha.getDate()).padStart(2, '0')
       const fechaFormateada = `${anio}-${mes}-${dia}`
 
-      console.log("Fecha consultada desde el calendario:", fechaFormateada); // <-- Esto te mostrará la fecha en la consola
-
-      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}`)
+      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}&servicio_id=${servicioABuscar}`)
       const datos = await respuesta.json()
-
-      console.log("Datos recibidos de la API:", datos); // <-- Esto te mostrará si la API devuelve turnos o un array vacío
 
       if (respuesta.ok) {
         setTurnosDisponibles(datos.horarios || [])
+        setProximoDisponibleModal(datos.proximoDisponible || null)
       } else {
         setTurnosDisponibles([])
       }
@@ -161,6 +179,14 @@ export default function Dashboard({ usuario }) {
     } finally {
       setCargandoModal(false)
     }
+  }
+
+  // Cuando el socio cambia de actividad DENTRO del modal (ej: pasa de
+  // Gimnasio a Pilates), volvemos a buscar los turnos de ese mismo día
+  // pero para la nueva actividad elegida.
+  function cambiarServicioModal(servicioId) {
+    setServicioModal(servicioId)
+    iniciarReserva(fechaSeleccionada, servicioId)
   }
 
   // Función para confirmar la reserva desde el Modal interactivo conectada a Supabase
@@ -204,6 +230,20 @@ export default function Dashboard({ usuario }) {
     recargarHorarios()
   }
 
+  async function pagarCuota() {
+    setGenerandoLinkDePago(true)
+    const res = await fetch('/api/pagos/crear-preferencia', { method: 'POST' })
+    const data = await res.json()
+    setGenerandoLinkDePago(false)
+
+    if (!res.ok) {
+      alert(data.error || 'No se pudo generar el link de pago')
+      return
+    }
+
+    window.location.href = data.url // manda al socio a pagar a Mercado Pago
+  }
+
   const tieneGimnasio = misServicios.some((s) => s.nombre === 'Gimnasio')
 
   return (
@@ -240,6 +280,27 @@ export default function Dashboard({ usuario }) {
             ))}
           </div>
         )}
+
+        {/* ------------------ CUOTA ------------------ */}
+        <Card>
+          <Eyebrow>Cuota</Eyebrow>
+          <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-3">Tu cuota de este mes</h2>
+
+          {miPago === null && <p className="text-sm text-concrete">Consultando...</p>}
+
+          {miPago === true && (
+            <p className="text-sm text-green-700 bg-green-50 rounded-xl p-4 font-medium">✅ Cuota al día</p>
+          )}
+
+          {miPago === false && (
+            <div className="bg-brand-light border border-brand/30 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-sm">Todavía no registramos el pago de este mes.</span>
+              <Button variant="primary" onClick={pagarCuota} disabled={generandoLinkDePago} className="text-xs py-2 px-4 uppercase tracking-wide">
+                {generandoLinkDePago ? 'Generando link...' : 'Pagar con Mercado Pago'}
+              </Button>
+            </div>
+          )}
+        </Card>
 
         {/* ------------------ RUTINA DE ENTRENAMIENTO ------------------ */}
         {tieneGimnasio && (
@@ -370,8 +431,13 @@ export default function Dashboard({ usuario }) {
               <div className="flex items-center gap-3">
                 <div className="w-2 h-8 bg-brand rounded-full" />
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-red-600 uppercase tracking-wider mb-0.5">
-                    {r.horarios?.actividad || r.actividad || 'Gimnasio'}
+                  <span className="text-xs font-bold text-red-600 uppercase tracking-wider mb-0.5 flex items-center gap-1.5">
+                    {r.servicio_nombre || 'Gimnasio'}
+                    {r.es_fijo && (
+                      <span className="bg-gray-100 text-gray-500 text-[10px] font-semibold px-1.5 py-0.5 rounded-full normal-case">
+                        Fijo
+                      </span>
+                    )}
                   </span>
                   <span className="text-sm font-mono text-gray-800">
                     {r.fecha} — {r.horarios?.hora_inicio?.slice(0, 5)} a {r.horarios?.hora_fin?.slice(0, 5)}
@@ -398,10 +464,32 @@ export default function Dashboard({ usuario }) {
               Día: <span className="text-red-600">{fechaSeleccionada.toLocaleDateString('es-AR')}</span>
             </p>
 
+            {misServicios.length > 1 && (
+              <div className="flex gap-2 mb-4">
+                {misServicios.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => cambiarServicioModal(s.id)}
+                    className={`text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border-2 transition ${
+                      servicioModal === s.id
+                        ? 'bg-black text-white border-black'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    {s.nombre}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!servicioModal && (
+              <p className="text-sm text-gray-500 text-center py-4">No tenés ningún plan asignado todavía.</p>
+            )}
+
             <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
               {cargandoModal ? (
                 <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
-              ) : turnosDisponibles.length === 0 ? (
+              ) : turnosDisponibles.length === 0 && !proximoDisponibleModal ? (
                 <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
               ) : (
                 turnosDisponibles.map((turno) => {
@@ -436,6 +524,23 @@ export default function Dashboard({ usuario }) {
                 })
               )}
             </div>
+
+            {!cargandoModal && proximoDisponibleModal && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm">
+                <p className="text-gray-700 mb-2">
+                  No hay lugar ese día. El próximo turno con cupo es el{' '}
+                  <strong>{proximoDisponibleModal.fecha}</strong> de{' '}
+                  <strong>{proximoDisponibleModal.hora_inicio.slice(0, 5)} a {proximoDisponibleModal.hora_fin.slice(0, 5)}</strong>.
+                </p>
+                <Button
+                  variant="primary"
+                  className="text-xs py-1.5 px-3 uppercase tracking-wide"
+                  onClick={() => iniciarReserva(new Date(`${proximoDisponibleModal.fecha}T00:00:00`), servicioModal)}
+                >
+                  Ir a esa fecha
+                </Button>
+              </div>
+            )}
 
             <div className="flex justify-end">
               <Button 
