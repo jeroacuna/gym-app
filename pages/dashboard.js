@@ -142,35 +142,51 @@ export default function Dashboard({ usuario }) {
       .then((data) => setHorarios(data.horarios || []))
   }
 
-  // Función interceptada para revisar si pagó antes de consultar turnos
-  const iniciarReserva = async (fecha, servicioForzado) => {
-    const servicioABuscar = servicioForzado || servicioModal
-    setFechaSeleccionada(fecha)
+// Función que se ejecuta al hacer clic en un día del Calendario interactivo
+  // Función que se ejecuta al hacer clic en un día del Calendario interactivo
+  const iniciarReserva = async (fechaSeleccionadaPorCalendario) => {
+    const fechaReal = fechaSeleccionadaPorCalendario instanceof Date 
+      ? fechaSeleccionadaPorCalendario 
+      : new Date();
+
+    setFechaSeleccionada(fechaReal)
     setIsModalOpen(true)
-    
-    // 1. Verificamos la cuota ANTES de buscar horarios
+
+    // Seleccionamos de manera segura el ID del servicio actual o el primero del plan
+    let servicioIdAUsar = servicioModal;
+    if (!servicioIdAUsar && misServicios.length > 0) {
+      servicioIdAUsar = misServicios[0].id;
+    }
+
+    if (servicioIdAUsar) {
+      setServicioModal(servicioIdAUsar);
+    }
+
+    // Verificamos la cuota ANTES de buscar horarios
     if (miPago === false) {
       setTurnosDisponibles([])
       setProximoDisponibleModal(null)
-      return // Cortamos la ejecución acá, la interfaz mostrará el aviso
+      return 
     }
 
     setCargandoModal(true)
     setProximoDisponibleModal(null)
-    setTurnosDisponibles([]) // Limpiamos datos anteriores por si cambia de Pilates a Gym
+    setTurnosDisponibles([]) 
 
-    if (!servicioABuscar) {
+    if (!servicioIdAUsar) {
       setCargandoModal(false)
       return
     }
 
+
     try {
-      const anio = fecha.getFullYear()
-      const mes = String(fecha.getMonth() + 1).padStart(2, '0')
-      const dia = String(fecha.getDate()).padStart(2, '0')
+      const anio = fechaReal.getFullYear()
+      const mes = String(fechaReal.getMonth() + 1).padStart(2, '0')
+      const dia = String(fechaReal.getDate()).padStart(2, '0')
       const fechaFormateada = `${anio}-${mes}-${dia}`
 
-      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}&servicio_id=${servicioABuscar}`)
+      // Hacemos la petición con el ID limpio y asegurado en formato de texto/número
+      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}&servicio_id=${servicioIdAUsar}`)
       const datos = await respuesta.json()
 
       if (respuesta.ok) {
@@ -188,9 +204,12 @@ export default function Dashboard({ usuario }) {
   }
 
   // Cambiar entre actividades limpiando la búsqueda anterior
-  function cambiarServicioModal(servicioId) {
-    setServicioModal(servicioId)
-    iniciarReserva(fechaSeleccionada, servicioId)
+function cambiarServicioModal(servicioId) {
+    // Si por algún motivo llega un objeto completo, extraemos su ID por seguridad
+    const idReal = typeof servicioId === 'object' && servicioId !== null ? servicioId.id : servicioId
+    
+    setServicioModal(idReal)
+    iniciarReserva(fechaSeleccionada, idReal)
   }
 
   async function reservarDesdeModal(horarioId) {
@@ -404,11 +423,11 @@ export default function Dashboard({ usuario }) {
             Reservar nuevo turno
           </h2>
           
-          <div className="flex justify-center p-4">
+        <div className="flex justify-center p-4">
             <Calendar 
               onChange={setFechaSeleccionada} 
               value={fechaSeleccionada}
-              onClickDay={iniciarReserva}
+              onClickDay={(fecha) => iniciarReserva(fecha)}
               minDate={new Date()} 
               locale="es-AR"
               className="border-0 shadow-sm rounded-lg"
@@ -479,19 +498,19 @@ export default function Dashboard({ usuario }) {
 
             {misServicios.length > 1 && (
               <div className="flex gap-2 mb-4">
-                {misServicios.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => cambiarServicioModal(s.id)}
-                    className={`text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border-2 transition ${
-                      servicioModal === s.id
-                        ? 'bg-black text-white border-black'
-                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    {s.nombre}
-                  </button>
-                ))}
+{misServicios.map((s) => (
+  <button
+    key={s.id}
+    onClick={() => cambiarServicioModal(s.id)} // <--- Asegúrate de que mande s.id y no sólo s
+    className={`text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border-2 transition ${
+      servicioModal === s.id
+        ? 'bg-black text-white border-black'
+        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+    }`}
+  >
+    {s.nombre}
+  </button>
+))}
               </div>
             )}
 
