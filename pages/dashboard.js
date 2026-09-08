@@ -193,6 +193,7 @@ export default function Dashboard({ usuario }) {
     iniciarReserva(fechaSeleccionada, servicioId)
   }
 
+  // Función para confirmar la reserva desde el Modal interactivo conectada a Supabase
   async function reservarDesdeModal(horarioId) {
     setMensaje('')
     
@@ -397,7 +398,7 @@ export default function Dashboard({ usuario }) {
           </Card>
         )}
 
-        {/* ------------------ CALENDARIO INTERACTIVO ------------------ */}
+        {/* ------------------ CALENDARIO INTERACTIVO RESTAURADO ------------------ */}
         <Card>
           <Eyebrow>Elige un día</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
