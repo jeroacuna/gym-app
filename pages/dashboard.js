@@ -65,7 +65,7 @@ export default function Dashboard({ usuario }) {
   const [misReservas, setMisReservas] = useState([])
   const [mensaje, setMensaje] = useState('')
   const [cargandoHorarios, setCargandoHorarios] = useState(false)
-  const [miPago, setMiPago] = useState(null) // null = cargando, true/false = pagado o no
+  const [miPago, setMiPago] = useState(null)
   const [generandoLinkDePago, setGenerandoLinkDePago] = useState(false)
 
   // Estados para el calendario interactivo y la ventana modal
@@ -73,7 +73,7 @@ export default function Dashboard({ usuario }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [turnosDisponibles, setTurnosDisponibles] = useState([])
   const [cargandoModal, setCargandoModal] = useState(false)
-  const [servicioModal, setServicioModal] = useState(null) // qué actividad se está reservando en el modal
+  const [servicioModal, setServicioModal] = useState(null) 
   const [proximoDisponibleModal, setProximoDisponibleModal] = useState(null)
 
   // Carga inicial de datos al abrir el dashboard
@@ -142,23 +142,29 @@ export default function Dashboard({ usuario }) {
       .then((data) => setHorarios(data.horarios || []))
   }
 
-  // Función que se ejecuta al hacer clic en un día del Calendario interactivo
+  // Función interceptada para revisar si pagó antes de consultar turnos
   const iniciarReserva = async (fecha, servicioForzado) => {
     const servicioABuscar = servicioForzado || servicioModal
     setFechaSeleccionada(fecha)
     setIsModalOpen(true)
+    
+    // 1. Verificamos la cuota ANTES de buscar horarios
+    if (miPago === false) {
+      setTurnosDisponibles([])
+      setProximoDisponibleModal(null)
+      return // Cortamos la ejecución acá, la interfaz mostrará el aviso
+    }
+
     setCargandoModal(true)
     setProximoDisponibleModal(null)
+    setTurnosDisponibles([]) // Limpiamos datos anteriores por si cambia de Pilates a Gym
 
     if (!servicioABuscar) {
-      // No tiene ningún servicio incluido en su plan — no hay nada que buscar.
-      setTurnosDisponibles([])
       setCargandoModal(false)
       return
     }
 
     try {
-      // Ajustamos para tomar la fecha local exacta y evitar desfases horarios
       const anio = fecha.getFullYear()
       const mes = String(fecha.getMonth() + 1).padStart(2, '0')
       const dia = String(fecha.getDate()).padStart(2, '0')
@@ -181,9 +187,7 @@ export default function Dashboard({ usuario }) {
     }
   }
 
-  // Cuando el socio cambia de actividad DENTRO del modal (ej: pasa de
-  // Gimnasio a Pilates), volvemos a buscar los turnos de ese mismo día
-  // pero para la nueva actividad elegida.
+  // Cambiar entre actividades limpiando la búsqueda anterior
   function cambiarServicioModal(servicioId) {
     setServicioModal(servicioId)
     iniciarReserva(fechaSeleccionada, servicioId)
@@ -241,7 +245,7 @@ export default function Dashboard({ usuario }) {
       return
     }
 
-    window.location.href = data.url // manda al socio a pagar a Mercado Pago
+    window.location.href = data.url 
   }
 
   const tieneGimnasio = misServicios.some((s) => s.nombre === 'Gimnasio')
@@ -413,7 +417,7 @@ export default function Dashboard({ usuario }) {
           </div>
         </Card>
 
-{/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
+        {/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
         <Card>
           <Eyebrow>Tu agenda</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
@@ -427,7 +431,6 @@ export default function Dashboard({ usuario }) {
           )}
 
           {misReservas.map((r) => {
-            // Formateamos la fecha de manera limpia y compacta (Ej: "lun. 14/9")
             const fechaFormateada = r.fecha 
               ? new Date(`${r.fecha}T00:00:00`).toLocaleDateString('es-AR', {
                   weekday: 'short',
@@ -463,7 +466,7 @@ export default function Dashboard({ usuario }) {
         </Card>
       </div>
 
-      {/* ------------------ MODAL FLOTANTE DE HORARIOS ------------------ */}
+      {/* ------------------ MODAL FLOTANTE DE HORARIOS (ACTUALIZADO) ------------------ */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
@@ -497,46 +500,65 @@ export default function Dashboard({ usuario }) {
               <p className="text-sm text-gray-500 text-center py-4">No tenés ningún plan asignado todavía.</p>
             )}
 
-            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
-              {cargandoModal ? (
-                <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
-              ) : turnosDisponibles.length === 0 && !proximoDisponibleModal ? (
-                <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
-              ) : (
-                turnosDisponibles.map((turno) => {
-                  // Buscamos el nombre real de la actividad comparando los IDs
-                  const servicioDelTurno = todosLosServicios.find((s) => s.id === turno.servicio_id);
-                  const nombreActividad = servicioDelTurno ? servicioDelTurno.nombre : 'Gimnasio';
+            {/* AVISO DE CUOTA PENDIENTE */}
+            {miPago === false ? (
+              <div className="flex flex-col items-center justify-center py-6 text-center bg-red-50 border border-red-100 rounded-lg mb-4">
+                <span className="text-2xl mb-2">🚫</span>
+                <p className="text-red-600 font-bold mb-1">Cuota pendiente</p>
+                <p className="text-sm text-gray-700 mb-4 px-2">
+                  Para poder reservar turnos en esta fecha, necesitás tener tu cuota mensual al día.
+                </p>
+                <Button 
+                  variant="primary" 
+                  onClick={pagarCuota} 
+                  disabled={generandoLinkDePago}
+                  className="text-xs uppercase tracking-wide"
+                >
+                  {generandoLinkDePago ? 'Generando link...' : 'Pagar cuota ahora'}
+                </Button>
+              </div>
+            ) : (
+              // RESULTADOS DE TURNOS
+              <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
+                {cargandoModal ? (
+                  <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
+                ) : turnosDisponibles.length === 0 && !proximoDisponibleModal ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
+                ) : (
+                  turnosDisponibles.map((turno) => {
+                    const servicioDelTurno = todosLosServicios.find((s) => s.id === turno.servicio_id);
+                    const nombreActividad = servicioDelTurno ? servicioDelTurno.nombre : 'Gimnasio';
 
-                  return (
-                    <div 
-                      key={turno.id} 
-                      className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
-                    >
-                      <div>
-                        {/* Imprimimos el nombre dinámico que acabamos de evaluar */}
-                        <span className="block text-xs font-bold text-red-600 uppercase">
-                          {nombreActividad}
-                        </span>
-                        <span className="text-sm font-mono text-gray-800">
-                          {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
-                        </span>
-                      </div>
-                      
-                      <Button 
-                        variant="primary"
-                        className="text-sm uppercase tracking-wide"
-                        onClick={() => reservarDesdeModal(turno.id)}
+                    return (
+                      <div 
+                        key={turno.id} 
+                        className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
                       >
-                        Reservar
-                      </Button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                        <div>
+                          <span className="block text-xs font-bold text-red-600 uppercase">
+                            {nombreActividad}
+                          </span>
+                          <span className="text-sm font-mono text-gray-800">
+                            {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
+                          </span>
+                        </div>
+                        
+                        <Button 
+                          variant="primary"
+                          className="text-sm uppercase tracking-wide"
+                          onClick={() => reservarDesdeModal(turno.id)}
+                        >
+                          Reservar
+                        </Button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
 
-            {!cargandoModal && proximoDisponibleModal && (
+            {/* AVISO DE PRÓXIMO TURNO DISPONIBLE */}
+            {miPago !== false && !cargandoModal && proximoDisponibleModal && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm">
                 <p className="text-gray-700 mb-2">
                   No hay lugar ese día. El próximo turno con cupo es el{' '}
@@ -553,7 +575,7 @@ export default function Dashboard({ usuario }) {
               </div>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex justify-end mt-2">
               <Button 
                 variant="secondary" 
                 onClick={() => setIsModalOpen(false)}
