@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getIronSession } from 'iron-session'
 import { sessionOptions } from '../lib/session'
 import Navbar from '../components/Navbar'
@@ -189,6 +189,16 @@ export default function Dashboard({ usuario }) {
     iniciarReserva(fechaSeleccionada, servicioId)
   }
 
+  // Referencia a la sección del calendario, para poder "llevar" al socio
+  // ahí apenas elige una actividad desde los cuadrados grandes.
+  const calendarioRef = useRef(null)
+
+  function seleccionarActividad(servicio) {
+    if (!servicio) return
+    setServicioModal(servicio.id)
+    calendarioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   // Función para confirmar la reserva desde el Modal interactivo conectada a Supabase
   async function reservarDesdeModal(horarioId) {
     setMensaje('')
@@ -245,6 +255,11 @@ export default function Dashboard({ usuario }) {
   }
 
   const tieneGimnasio = misServicios.some((s) => s.nombre === 'Gimnasio')
+
+  // Servicios reales (con su id de la base) detrás de cada cuadrado grande
+  const servicioGimnasio = todosLosServicios.find((s) => s.nombre === 'Gimnasio')
+  const servicioPilates = todosLosServicios.find((s) => s.nombre === 'Pilates')
+  const actividadSeleccionada = todosLosServicios.find((s) => s.id === servicioModal)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -394,24 +409,84 @@ export default function Dashboard({ usuario }) {
           </Card>
         )}
 
-        {/* ------------------ CALENDARIO INTERACTIVO RESTAURADO ------------------ */}
+        {/* ------------------ ELEGIR ACTIVIDAD (accesos directos) ------------------ */}
         <Card>
-          <Eyebrow>Elige un día</Eyebrow>
+          <Eyebrow>Sacar turno</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
-            Reservar nuevo turno
+            ¿Qué querés reservar?
           </h2>
-          
-          <div className="flex justify-center p-4">
-            <Calendar 
-              onChange={setFechaSeleccionada} 
-              value={fechaSeleccionada}
-              onClickDay={iniciarReserva}
-              minDate={new Date()} 
-              locale="es-AR"
-              className="border-0 shadow-sm rounded-lg"
-            />
+
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { servicio: servicioGimnasio, label: 'Musculación', emoji: '💪', gradient: 'from-ink to-steel' },
+              { servicio: servicioPilates, label: 'Pilates', emoji: '🧘‍♀️', gradient: 'from-brand to-brand-dark' },
+            ].map(({ servicio, label, emoji, gradient }, i) => {
+              const incluido = !!servicio && servicioIncluido(servicio.id)
+              const seleccionado = !!servicio && servicioModal === servicio.id
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={!incluido}
+                  onClick={() => seleccionarActividad(servicio)}
+                  style={{ animationDelay: `${i * 90}ms` }}
+                  className={`animate-card-in group relative aspect-square rounded-2xl bg-gradient-to-br ${gradient} text-white flex flex-col items-center justify-center gap-2 overflow-hidden transition-all duration-300 ${
+                    incluido
+                      ? 'cursor-pointer hover:-translate-y-1 hover:shadow-xl active:scale-95'
+                      : 'opacity-40 grayscale cursor-not-allowed'
+                  } ${seleccionado ? 'ring-4 ring-brand ring-offset-2' : ''}`}
+                >
+                  <span
+                    className={`text-4xl transition-transform duration-300 ${
+                      incluido ? 'group-hover:scale-110 group-hover:-rotate-6' : ''
+                    }`}
+                  >
+                    {emoji}
+                  </span>
+                  <span className="font-display font-semibold text-sm uppercase tracking-wide">
+                    {label}
+                  </span>
+                  {!incluido && (
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-white/70 px-2 text-center">
+                      No incluido en tu plan
+                    </span>
+                  )}
+                  <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </button>
+              )
+            })}
           </div>
         </Card>
+
+        {/* ------------------ CALENDARIO INTERACTIVO RESTAURADO ------------------ */}
+        <div ref={calendarioRef} id="calendario-reservas">
+          <Card>
+            <Eyebrow>Elige un día</Eyebrow>
+            <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-1 text-black">
+              Reservar nuevo turno
+            </h2>
+
+            {actividadSeleccionada && (
+              <p className="font-mono text-xs text-concrete uppercase tracking-wide mb-3">
+                Reservando para:{' '}
+                <span className="text-brand font-semibold">
+                  {actividadSeleccionada.nombre === 'Gimnasio' ? 'Musculación' : actividadSeleccionada.nombre}
+                </span>
+              </p>
+            )}
+
+            <div className="flex justify-center p-4">
+              <Calendar
+                onChange={setFechaSeleccionada}
+                value={fechaSeleccionada}
+                onClickDay={iniciarReserva}
+                minDate={new Date()}
+                locale="es-AR"
+                className="border-0 shadow-sm rounded-lg"
+              />
+            </div>
+          </Card>
+        </div>
 
 {/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
         <Card>
