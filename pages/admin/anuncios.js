@@ -104,7 +104,7 @@ export default function AdminAnuncios() {
           {anuncios.map((a) => (
             <div key={a.id} className="flex justify-between items-start gap-3 py-3 border-b border-gray-100 last:border-0">
               <div>
-                <p className="text-sm">{a.mensaje}</p>
+                <p className="text-sm font-astron">{a.mensaje}</p>
                 <span className={`inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${a.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                   {a.activo ? 'Visible para socios' : 'Oculto'}
                 </span>

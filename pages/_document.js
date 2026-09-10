@@ -8,9 +8,15 @@ export default function Document() {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="true" />
         {/* Oswald: título grande, condensado y pesado — la voz "gimnasio de alto rendimiento".
             Inter: texto de lectura, limpio y legible.
-            JetBrains Mono: números y datos (cupos, DNI, horarios) con look de panel de control. */}
+            JetBrains Mono: números y datos (cupos, DNI, horarios) con look de panel de control.
+            Orbitron: tipografía "Astron" pedida por el cliente — se usa SOLO en anuncios
+            y en los nombres de ejercicios de la rutina. */}
         <link
           href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap"
+          rel="stylesheet"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700&display=swap"
           rel="stylesheet"
         />
       </Head>

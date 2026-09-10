@@ -476,8 +476,8 @@ export default function Dashboard({ usuario }) {
                                       <tbody>
                                         {porBloque[bloque].map((e, i) => (
                                           <tr key={e.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
-                                            <td className="px-4 py-2.5 border-b border-gray-100 font-medium text-ink">
-                                              {e.nombre}
+                                                                                        <td className="px-4 py-2.5 border-b border-gray-100 font-medium text-ink">
+                                              <span className="font-astron">{e.nombre}</span>
                                             </td>
                                             <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono font-semibold text-ink">
                                               {e.series}

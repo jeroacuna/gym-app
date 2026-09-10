@@ -24,6 +24,7 @@ module.exports = {
         display: ['Oswald', 'sans-serif'], // títulos grandes, en mayúscula
         sans: ['Inter', 'sans-serif'], // texto de lectura
         mono: ['"JetBrains Mono"', 'monospace'], // números y datos
+        astron: ['Orbitron', 'sans-serif'], // "Astron" (anuncios y ejercicios)
       },
     },
   },

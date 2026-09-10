@@ -28,7 +28,7 @@ export default function Navbar({ links = [], accesos = [] }) {
         <div className="flex items-center gap-3">
           <HamburgerMenu items={itemsMenu} />
           <div className="flex items-center gap-2.5">
-            <Logo className="w-8 h-4 text-brand" />
+            <Logo className="w-8 h-8" />
             <span className="font-display font-semibold tracking-wide uppercase text-sm sm:text-base">
               {NOMBRE_GIMNASIO}
             </span>

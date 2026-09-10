@@ -43,7 +43,7 @@ export default function Login() {
 
       <div className="relative w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <Logo className="w-20 h-10 text-brand mb-4" />
+          <Logo className="w-20 h-20 text-brand mb-4" />
           <h1 className="text-white font-display font-semibold text-2xl sm:text-3xl uppercase tracking-wide text-center leading-tight">
             {NOMBRE_GIMNASIO}
           </h1>

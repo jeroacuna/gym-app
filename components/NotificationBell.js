@@ -59,7 +59,7 @@ export default function NotificationBell() {
                 <strong className="block text-xs uppercase tracking-wide text-brand mb-0.5">
                   📣 Anuncio nuevo
                 </strong>
-                <span className="text-sm text-ink">{a.mensaje}</span>
+                <span className="text-sm text-ink font-astron">{a.mensaje}</span>
               </div>
               {/* La X solo cierra el toast, NO lo marca como visto —
                   sigue esperando en la campanita para más tarde. */}
@@ -152,7 +152,7 @@ export default function NotificationBell() {
                 <div className="flex items-start gap-2">
                   {!a.visto && <span className="w-2 h-2 rounded-full bg-brand mt-1.5 shrink-0" />}
                   <div>
-                    <p className="text-sm">{a.mensaje}</p>
+                    <p className="text-sm font-astron">{a.mensaje}</p>
                     <span className="text-[11px] font-mono text-gray-400">
                       {new Date(a.creado_en).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
                     </span>
