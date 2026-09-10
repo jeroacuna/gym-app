@@ -1,23 +1,26 @@
-import Link from 'next/link'
-import { useRouter } from 'next/router'
-import Logo from './Logo'
 import NotificationBell from './NotificationBell'
 import HamburgerMenu from './HamburgerMenu'
+import Logo from './Logo'
 import { NOMBRE_GIMNASIO } from '../lib/config'
 
-// "links" = navegación real de páginas (se usa en /admin/*, se
-// muestra como pestañas Y también adentro del menú hamburguesa).
-// "accesos" = atajos por ancla dentro de la MISMA página (se usa en
-// el dashboard del socio, que no tiene páginas separadas).
+// "links" = navegación real de páginas del admin (ahora solo vive
+// adentro del menú hamburguesa, ya no como pestañas a la vista).
+// "accesos" = atajos por ancla dentro de la MISMA página (dashboard
+// del socio, que no tiene páginas separadas).
+//
+// Usamos "links.length > 0" como señal de "esta es una pantalla de
+// admin" (hoy es así en toda la app) para decidir dos cosas: qué le
+// mostramos al hamburguesa, y si corresponde mostrar la campanita de
+// anuncios (el admin no la necesita — los anuncios son un mensaje
+// para los socios, no para él).
 export default function Navbar({ links = [], accesos = [] }) {
-  const router = useRouter()
-
   async function handleLogout() {
     await fetch('/api/logout', { method: 'POST' })
     window.location.href = '/login'
   }
 
-  const itemsMenu = links.length > 0 ? links : accesos
+  const esAdmin = links.length > 0
+  const itemsMenu = esAdmin ? links : accesos
 
   return (
     <div className="bg-ink text-white sticky top-0 z-10">
@@ -33,7 +36,7 @@ export default function Navbar({ links = [], accesos = [] }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <NotificationBell />
+          {!esAdmin && <NotificationBell />}
           <button
             onClick={handleLogout}
             className="text-xs font-semibold uppercase tracking-wide border border-white/20 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand transition"
@@ -42,27 +45,6 @@ export default function Navbar({ links = [], accesos = [] }) {
           </button>
         </div>
       </div>
-
-      {links.length > 0 && (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-0 flex gap-1 flex-wrap overflow-x-auto">
-          {links.map((l) => {
-            const activo = router.pathname === l.href
-            return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={`text-xs sm:text-sm font-semibold uppercase tracking-wide px-3 py-2.5 border-b-2 transition whitespace-nowrap ${
-                  activo
-                    ? 'border-brand text-white'
-                    : 'border-transparent text-white/50 hover:text-white hover:border-white/30'
-                }`}
-              >
-                {l.label}
-              </Link>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

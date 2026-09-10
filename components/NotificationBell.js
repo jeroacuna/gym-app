@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 
-// Campanita de notificaciones que vive en el Navbar. Hace 3 cosas:
+// Campanita de notificaciones que vive en el Navbar (solo para
+// socios — ver Navbar.js). Hace 3 cosas:
 // 1. Dispara un toast de 10 segundos por cada anuncio nuevo (no
 //    visto) que todavía no le mostramos en esta pestaña.
-// 2. Si el socio no llega a verlo o lo cierra sin querer, el aviso
+// 2. Si el socio lo cierra con la "X" o no llega a verlo, el aviso
 //    queda esperando en la campanita (con un contador de "no
 //    leídos") para que lo pueda revisar cuando quiera.
-// 3. Al abrir la campanita y tocar un aviso (o el toast mismo), se
-//    marca como visto y deja de contar como pendiente.
+// 3. Al abrir la campanita y tocar un aviso (o el cuerpo del toast),
+//    recién ahí se marca como visto y deja de contar como pendiente.
 export default function NotificationBell() {
   const [anuncios, setAnuncios] = useState([])
   const [abierto, setAbierto] = useState(false)
@@ -52,11 +53,23 @@ export default function NotificationBell() {
         yaNotificados.current.add(a.id)
         toast(
           (t) => (
-            <div onClick={() => marcarVisto(a.id, t.id)} className="cursor-pointer">
-              <strong className="block text-xs uppercase tracking-wide text-brand mb-0.5">
-                📣 Anuncio nuevo
-              </strong>
-              <span className="text-sm text-ink">{a.mensaje}</span>
+            <div className="flex items-start gap-2">
+              {/* Tocar el mensaje = "lo leí" → se marca visto y se cierra */}
+              <div onClick={() => marcarVisto(a.id, t.id)} className="cursor-pointer flex-1">
+                <strong className="block text-xs uppercase tracking-wide text-brand mb-0.5">
+                  📣 Anuncio nuevo
+                </strong>
+                <span className="text-sm text-ink">{a.mensaje}</span>
+              </div>
+              {/* La X solo cierra el toast, NO lo marca como visto —
+                  sigue esperando en la campanita para más tarde. */}
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1 shrink-0"
+                aria-label="Cerrar aviso"
+              >
+                ×
+              </button>
             </div>
           ),
           { duration: 10000 }

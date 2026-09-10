@@ -162,50 +162,96 @@ export default function Dashboard({ usuario }) {
   }
 
   // Función que se ejecuta al hacer clic en un día del Calendario interactivo
-  const iniciarReserva = async (fecha, servicioForzado) => {
-    const servicioABuscar = servicioForzado || servicioModal
-    setFechaSeleccionada(fecha)
-    setIsModalOpen(true)
-    setCargandoModal(true)
-    setProximoDisponibleModal(null)
+  // 1. Agregamos un segundo parámetro a iniciarReserva para forzar la búsqueda con el ID correcto al instante
+  // Modificamos iniciarReserva para que acepte un ID forzado y busque el Gimnasio por defecto
+// Modificamos iniciarReserva con validaciones estrictas de tipos de datos
+  const iniciarReserva = async (fechaSeleccionadaPorCalendario, idServicioForzado = null) => {
+    const fechaReal = fechaSeleccionadaPorCalendario instanceof Date 
+      ? fechaSeleccionadaPorCalendario 
+      : new Date();
 
-    if (!servicioABuscar) {
-      // No tiene ningún servicio incluido en su plan — no hay nada que buscar.
-      setTurnosDisponibles([])
-      setCargandoModal(false)
-      return
+    setFechaSeleccionada(fechaReal);
+    setIsModalOpen(true);
+
+    // 1. Limpiamos y aseguramos el ID del servicio (evita errores si entra un objeto Event)
+    let servicioIdAUsar = null;
+    if (idServicioForzado !== null && typeof idServicioForzado !== 'object') {
+      servicioIdAUsar = idServicioForzado;
+    } else if (servicioModal !== null && typeof servicioModal !== 'object') {
+      servicioIdAUsar = servicioModal;
     }
 
-    try {
-      // Ajustamos para tomar la fecha local exacta y evitar desfases horarios
-      const anio = fecha.getFullYear()
-      const mes = String(fecha.getMonth() + 1).padStart(2, '0')
-      const dia = String(fecha.getDate()).padStart(2, '0')
-      const fechaFormateada = `${anio}-${mes}-${dia}`
+    // 2. Selección automática de 'Gimnasio' si la variable está vacía
+    if (!servicioIdAUsar && misServicios.length > 0) {
+      // Usamos .includes para evitar problemas con mayúsculas/minúsculas o espacios extra
+      const gimnasio = misServicios.find(s => s.nombre.toLowerCase().includes('gimnasio'));
+      servicioIdAUsar = gimnasio ? gimnasio.id : misServicios[0].id;
+    }
 
-      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}&servicio_id=${servicioABuscar}`)
-      const datos = await respuesta.json()
+    // 3. Guardamos el ID final validado en el estado
+    if (servicioIdAUsar) {
+      setServicioModal(servicioIdAUsar);
+    }
+
+    if (miPago === false) {
+      setTurnosDisponibles([]);
+      setProximoDisponibleModal(null);
+      return; 
+    }
+
+    setCargandoModal(true);
+    setProximoDisponibleModal(null);
+    setTurnosDisponibles([]); 
+
+    if (!servicioIdAUsar) {
+      setCargandoModal(false);
+      return;
+    }
+
+    // 4. Ejecución del fetch con el ID correcto garantizado
+    try {
+      const anio = fechaReal.getFullYear();
+      const mes = String(fechaReal.getMonth() + 1).padStart(2, '0');
+      const dia = String(fechaReal.getDate()).padStart(2, '0');
+      const fechaFormateada = `${anio}-${mes}-${dia}`;
+
+      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}&servicio_id=${servicioIdAUsar}`);
+      const datos = await respuesta.json();
 
       if (respuesta.ok) {
-        setTurnosDisponibles(datos.horarios || [])
-        setProximoDisponibleModal(datos.proximoDisponible || null)
+        setTurnosDisponibles(datos.horarios || []);
+        setProximoDisponibleModal(datos.proximoDisponible || null);
       } else {
-        setTurnosDisponibles([])
+        setTurnosDisponibles([]);
       }
     } catch (error) {
-      console.error("Error al cargar horarios:", error)
-      setTurnosDisponibles([])
+      console.error("Error al cargar horarios:", error);
+      setTurnosDisponibles([]);
     } finally {
-      setCargandoModal(false)
+      setCargandoModal(false);
     }
   }
 
-  // Cuando el socio cambia de actividad DENTRO del modal (ej: pasa de
-  // Gimnasio a Pilates), volvemos a buscar los turnos de ese mismo día
-  // pero para la nueva actividad elegida.
+  // 2. Modificamos cambiarServicio para que le pase el ID directo a la búsqueda
   function cambiarServicioModal(servicioId) {
-    setServicioModal(servicioId)
-    iniciarReserva(fechaSeleccionada, servicioId)
+    const idReal = typeof servicioId === 'object' && servicioId !== null ? servicioId.id : servicioId
+    setServicioModal(idReal)
+    // Le pasamos idReal como segundo parámetro para que busque "de una"
+    iniciarReserva(fechaSeleccionada, idReal)
+  }
+
+  // 3. NUEVA FUNCIÓN: Cambiar de día desde las flechas
+  function cambiarDiaModal(diasDiferencia) {
+    const nuevaFecha = new Date(fechaSeleccionada)
+    nuevaFecha.setDate(nuevaFecha.getDate() + diasDiferencia)
+
+    // Validación para no buscar en el pasado
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+    if (nuevaFecha < hoy) return
+
+    // Llamamos a la reserva pasándole la nueva fecha y el servicio actual
+    iniciarReserva(nuevaFecha, servicioModal)
   }
 
   // Función para confirmar la reserva desde el Modal interactivo conectada a Supabase
@@ -530,26 +576,45 @@ export default function Dashboard({ usuario }) {
         </Card>
       </div>
 
-      {/* ------------------ MODAL FLOTANTE DE HORARIOS ------------------ */}
+{/* ------------------ MODAL FLOTANTE DE HORARIOS ------------------ */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-            <h3 className="text-xl font-bold text-black mb-2">
+            <h3 className="text-xl font-bold text-black mb-4">
               Seleccionar Horario
             </h3>
             
-            <p className="text-gray-600 mb-4 font-medium">
-              Día: <span className="text-red-600">{fechaSeleccionada.toLocaleDateString('es-AR')}</span>
-            </p>
+            {/* INICIO NUEVO ENCABEZADO CON FLECHAS */}
+            <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg mb-4 border border-gray-200">
+              <button 
+                onClick={() => cambiarDiaModal(-1)} 
+                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-red-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              
+              <p className="text-red-600 font-semibold capitalize text-center text-sm m-0">
+                {fechaSeleccionada.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'numeric' })}
+              </p>
+              
+              <button 
+                onClick={() => cambiarDiaModal(1)} 
+                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-red-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+            {/* FIN NUEVO ENCABEZADO CON FLECHAS */}
 
-            {misServicios.length > 1 && (
+{misServicios.length > 1 && (
               <div className="flex gap-2 mb-4">
                 {misServicios.map((s) => (
                   <button
                     key={s.id}
                     onClick={() => cambiarServicioModal(s.id)}
+                    // Convertimos ambos valores a String para asegurar una comparación idéntica
                     className={`text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border-2 transition ${
-                      servicioModal === s.id
+                      String(servicioModal) === String(s.id)
                         ? 'bg-black text-white border-black'
                         : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
                     }`}
@@ -560,48 +625,60 @@ export default function Dashboard({ usuario }) {
               </div>
             )}
 
-            {!servicioModal && (
-              <p className="text-sm text-gray-500 text-center py-4">No tenés ningún plan asignado todavía.</p>
-            )}
+            {/* Mensajes de validación inicial para orientar al usuario */}
+            {!servicioModal && misServicios.length > 0 ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-blue-700 text-center font-semibold">
+                  👆 Seleccioná una disciplina arriba (Gimnasio o Pilates) para cargar los horarios disponibles.
+                </p>
+              </div>
+            ) : !servicioModal && misServicios.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                No tenés ningún plan asignado todavía.
+              </p>
+            ) : null}
 
-            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
-              {cargandoModal ? (
-                <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
-              ) : turnosDisponibles.length === 0 && !proximoDisponibleModal ? (
-                <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
-              ) : (
-                turnosDisponibles.map((turno) => {
-                  // Buscamos el nombre real de la actividad comparando los IDs
-                  const servicioDelTurno = todosLosServicios.find((s) => s.id === turno.servicio_id);
-                  const nombreActividad = servicioDelTurno ? servicioDelTurno.nombre : 'Gimnasio';
+            {/* Renderizamos los horarios ÚNICAMENTE si ya hay un servicio seleccionado */}
+            {servicioModal && (
+              <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
+                {cargandoModal ? (
+                  <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
+                ) : turnosDisponibles.length === 0 && !proximoDisponibleModal ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta disciplina en esta fecha.</p>
+                ) : (
+                  turnosDisponibles.map((turno) => {
+                    // Buscamos el nombre real de la actividad comparando los IDs
+                    const servicioDelTurno = todosLosServicios.find((s) => s.id === turno.servicio_id);
+                    const nombreActividad = servicioDelTurno ? servicioDelTurno.nombre : 'Gimnasio';
 
-                  return (
-                    <div 
-                      key={turno.id} 
-                      className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
-                    >
-                      <div>
-                        {/* Imprimimos el nombre dinámico que acabamos de evaluar */}
-                        <span className="block text-xs font-bold text-red-600 uppercase">
-                          {nombreActividad}
-                        </span>
-                        <span className="text-sm font-mono text-gray-800">
-                          {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
-                        </span>
-                      </div>
-                      
-                      <Button 
-                        variant="primary"
-                        className="text-sm uppercase tracking-wide"
-                        onClick={() => reservarDesdeModal(turno.id)}
+                    return (
+                      <div 
+                        key={turno.id} 
+                        className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
                       >
-                        Reservar
-                      </Button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                        <div>
+                          {/* Imprimimos el nombre dinámico que acabamos de evaluar */}
+                          <span className="block text-xs font-bold text-red-600 uppercase">
+                            {nombreActividad}
+                          </span>
+                          <span className="text-sm font-mono text-gray-800">
+                            {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
+                          </span>
+                        </div>
+                        
+                        <Button 
+                          variant="primary"
+                          className="text-sm uppercase tracking-wide"
+                          onClick={() => reservarDesdeModal(turno.id)}
+                        >
+                          Reservar
+                        </Button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
 
             {!cargandoModal && proximoDisponibleModal && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm">
