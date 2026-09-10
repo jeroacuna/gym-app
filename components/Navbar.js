@@ -1,9 +1,15 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Logo from './Logo'
+import NotificationBell from './NotificationBell'
+import HamburgerMenu from './HamburgerMenu'
 import { NOMBRE_GIMNASIO } from '../lib/config'
 
-export default function Navbar({ links = [] }) {
+// "links" = navegación real de páginas (se usa en /admin/*, se
+// muestra como pestañas Y también adentro del menú hamburguesa).
+// "accesos" = atajos por ancla dentro de la MISMA página (se usa en
+// el dashboard del socio, que no tiene páginas separadas).
+export default function Navbar({ links = [], accesos = [] }) {
   const router = useRouter()
 
   async function handleLogout() {
@@ -11,21 +17,30 @@ export default function Navbar({ links = [] }) {
     window.location.href = '/login'
   }
 
+  const itemsMenu = links.length > 0 ? links : accesos
+
   return (
     <div className="bg-ink text-white sticky top-0 z-10">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Logo className="w-8 h-4 text-brand" />
-          <span className="font-display font-semibold tracking-wide uppercase text-sm sm:text-base">
-            {NOMBRE_GIMNASIO}
-          </span>
+        <div className="flex items-center gap-3">
+          <HamburgerMenu items={itemsMenu} />
+          <div className="flex items-center gap-2.5">
+            <Logo className="w-8 h-4 text-brand" />
+            <span className="font-display font-semibold tracking-wide uppercase text-sm sm:text-base">
+              {NOMBRE_GIMNASIO}
+            </span>
+          </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="text-xs font-semibold uppercase tracking-wide border border-white/20 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand transition"
-        >
-          Salir
-        </button>
+
+        <div className="flex items-center gap-3">
+          <NotificationBell />
+          <button
+            onClick={handleLogout}
+            className="text-xs font-semibold uppercase tracking-wide border border-white/20 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand transition"
+          >
+            Salir
+          </button>
+        </div>
       </div>
 
       {links.length > 0 && (

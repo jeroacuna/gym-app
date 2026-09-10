@@ -28,6 +28,17 @@ const BLOQUES_INFO = {
 // hoy" al socio con solo mirar el reloj del navegador.
 const DIAS_SEMANA_JS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
 
+// Accesos directos que se muestran en el menú hamburguesa del
+// socio. Como el dashboard es una sola pantalla larga con todo
+// adentro, acá no navegamos a otra URL: hacemos scroll a la
+// sección correspondiente (ver HamburgerMenu.js).
+const ACCESOS_SOCIO = [
+  { href: '#cuota', label: 'Mi cuota', icon: '💳' },
+  { href: '#rutina', label: 'Mi rutina', icon: '🏋️' },
+  { href: '#reservar', label: 'Reservar turno', icon: '📅' },
+  { href: '#mis-turnos', label: 'Mis turnos', icon: '🗓️' },
+]
+
 function agruparPorDia(ejercicios) {
   const grupos = {}
   ejercicios.forEach((e) => {
@@ -256,7 +267,7 @@ export default function Dashboard({ usuario }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
+      <Navbar accesos={ACCESOS_SOCIO} />
 
       {/* ------------------ BANNER ------------------ */}
       <div className="relative bg-ink text-white overflow-hidden">
@@ -278,7 +289,7 @@ export default function Dashboard({ usuario }) {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
         
         {/* ------------------ CUOTA ------------------ */}
-        <Card>
+        <Card id="cuota">
           <Eyebrow>Cuota</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-3">Tu cuota de este mes</h2>
 
@@ -300,7 +311,7 @@ export default function Dashboard({ usuario }) {
 
         {/* ------------------ RUTINA DE ENTRENAMIENTO ------------------ */}
         {tieneGimnasio && (
-          <Card>
+          <Card id="rutina">
             <Eyebrow>Plan de entrenamiento</Eyebrow>
             <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4">Tu rutina</h2>
 
@@ -451,7 +462,7 @@ export default function Dashboard({ usuario }) {
         )}
 
         {/* ------------------ CALENDARIO INTERACTIVO RESTAURADO ------------------ */}
-        <Card>
+        <Card id="reservar">
           <Eyebrow>Elige un día</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
             Reservar nuevo turno
@@ -470,7 +481,7 @@ export default function Dashboard({ usuario }) {
         </Card>
 
 {/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
-        <Card>
+        <Card id="mis-turnos">
           <Eyebrow>Tu agenda</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
             Mis turnos reservados
