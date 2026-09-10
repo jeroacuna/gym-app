@@ -33,25 +33,3 @@ body {
   background-color: #f3f4f6;
   color: #9ca3af;
 }
-
-/* --- Animación de entrada para los cuadrados de "Musculación" / "Pilates" --- */
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.animate-card-in {
-  animation: card-in 0.45s ease-out both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-card-in {
-    animation: none;
-  }
-}
