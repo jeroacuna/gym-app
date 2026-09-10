@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Logo from './Logo'
+import NotificationBell from './NotificationBell'
 import { NOMBRE_GIMNASIO } from '../lib/config'
 
 export default function Navbar({ links = [] }) {
@@ -20,12 +21,16 @@ export default function Navbar({ links = [] }) {
             {NOMBRE_GIMNASIO}
           </span>
         </div>
-        <button
-          onClick={handleLogout}
-          className="text-xs font-semibold uppercase tracking-wide border border-white/20 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand transition"
-        >
-          Salir
-        </button>
+
+        <div className="flex items-center gap-3">
+          <NotificationBell />
+          <button
+            onClick={handleLogout}
+            className="text-xs font-semibold uppercase tracking-wide border border-white/20 rounded-lg px-3 py-1.5 hover:border-brand hover:text-brand transition"
+          >
+            Salir
+          </button>
+        </div>
       </div>
 
       {links.length > 0 && (

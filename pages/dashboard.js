@@ -22,6 +22,12 @@ const BLOQUES_INFO = {
   finalizador: { label: 'Finalizador', color: '#111827' },
 }
 
+// Mapeo directo de Date.getDay() (0 = domingo, 6 = sábado) al mismo
+// formato de texto que usamos en ejercicios.dia_semana. Así, sin
+// tocar la base de datos, podemos saber "qué día de rutina le toca
+// hoy" al socio con solo mirar el reloj del navegador.
+const DIAS_SEMANA_JS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+
 function agruparPorDia(ejercicios) {
   const grupos = {}
   ejercicios.forEach((e) => {
@@ -56,7 +62,6 @@ export default function Dashboard({ usuario }) {
   // Estados originales de rutinas, anuncios y servicios
   const [rutina, setRutina] = useState(null)
   const [ejercicios, setEjercicios] = useState([])
-  const [anuncios, setAnuncios] = useState([])
   const [todosLosServicios, setTodosLosServicios] = useState([])
   const [misServicios, setMisServicios] = useState([])
   const [servicioElegido, setServicioElegido] = useState(null)
@@ -65,7 +70,7 @@ export default function Dashboard({ usuario }) {
   const [misReservas, setMisReservas] = useState([])
   const [mensaje, setMensaje] = useState('')
   const [cargandoHorarios, setCargandoHorarios] = useState(false)
-  const [miPago, setMiPago] = useState(null)
+  const [miPago, setMiPago] = useState(null) // null = cargando, true/false = pagado o no
   const [generandoLinkDePago, setGenerandoLinkDePago] = useState(false)
 
   // Estados para el calendario interactivo y la ventana modal
@@ -73,8 +78,15 @@ export default function Dashboard({ usuario }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [turnosDisponibles, setTurnosDisponibles] = useState([])
   const [cargandoModal, setCargandoModal] = useState(false)
-  const [servicioModal, setServicioModal] = useState(null) 
+  const [servicioModal, setServicioModal] = useState(null) // qué actividad se está reservando en el modal
   const [proximoDisponibleModal, setProximoDisponibleModal] = useState(null)
+
+  // Si false, la rutina muestra SOLO el día de hoy. Si true, muestra
+  // la semana completa (como funcionaba antes de este cambio).
+  const [verSemanaCompleta, setVerSemanaCompleta] = useState(false)
+
+  // Día de hoy en el mismo formato que usa la base para dia_semana.
+  const diaDeHoy = DIAS_SEMANA_JS[new Date().getDay()]
 
   // Carga inicial de datos al abrir el dashboard
   useEffect(() => {
@@ -84,10 +96,6 @@ export default function Dashboard({ usuario }) {
         setRutina(data.rutina)
         setEjercicios(data.ejercicios)
       })
-
-    fetch('/api/anuncios')
-      .then((r) => r.json())
-      .then((data) => setAnuncios(data.anuncios || []))
 
     fetch('/api/mi-pago')
       .then((r) => r.json())
@@ -142,51 +150,29 @@ export default function Dashboard({ usuario }) {
       .then((data) => setHorarios(data.horarios || []))
   }
 
-// Función que se ejecuta al hacer clic en un día del Calendario interactivo
   // Función que se ejecuta al hacer clic en un día del Calendario interactivo
-  const iniciarReserva = async (fechaSeleccionadaPorCalendario) => {
-    const fechaReal = fechaSeleccionadaPorCalendario instanceof Date 
-      ? fechaSeleccionadaPorCalendario 
-      : new Date();
-
-    setFechaSeleccionada(fechaReal)
+  const iniciarReserva = async (fecha, servicioForzado) => {
+    const servicioABuscar = servicioForzado || servicioModal
+    setFechaSeleccionada(fecha)
     setIsModalOpen(true)
-
-    // Seleccionamos de manera segura el ID del servicio actual o el primero del plan
-    let servicioIdAUsar = servicioModal;
-    if (!servicioIdAUsar && misServicios.length > 0) {
-      servicioIdAUsar = misServicios[0].id;
-    }
-
-    if (servicioIdAUsar) {
-      setServicioModal(servicioIdAUsar);
-    }
-
-    // Verificamos la cuota ANTES de buscar horarios
-    if (miPago === false) {
-      setTurnosDisponibles([])
-      setProximoDisponibleModal(null)
-      return 
-    }
-
     setCargandoModal(true)
     setProximoDisponibleModal(null)
-    setTurnosDisponibles([]) 
 
-    if (!servicioIdAUsar) {
+    if (!servicioABuscar) {
+      // No tiene ningún servicio incluido en su plan — no hay nada que buscar.
+      setTurnosDisponibles([])
       setCargandoModal(false)
       return
     }
 
-
     try {
-      const anio = fechaReal.getFullYear()
-      const mes = String(fechaReal.getMonth() + 1).padStart(2, '0')
-      const dia = String(fechaReal.getDate()).padStart(2, '0')
+      // Ajustamos para tomar la fecha local exacta y evitar desfases horarios
+      const anio = fecha.getFullYear()
+      const mes = String(fecha.getMonth() + 1).padStart(2, '0')
+      const dia = String(fecha.getDate()).padStart(2, '0')
       const fechaFormateada = `${anio}-${mes}-${dia}`
 
-      // Hacemos la petición con el ID limpio y asegurado en formato de texto/número
-      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}&servicio_id=${servicioIdAUsar}`)
+      const respuesta = await fetch(`/api/horarios-disponibles?fecha=${fechaFormateada}&servicio_id=${servicioABuscar}`)
       const datos = await respuesta.json()
 
       if (respuesta.ok) {
@@ -203,15 +189,15 @@ export default function Dashboard({ usuario }) {
     }
   }
 
-  // Cambiar entre actividades limpiando la búsqueda anterior
-function cambiarServicioModal(servicioId) {
-    // Si por algún motivo llega un objeto completo, extraemos su ID por seguridad
-    const idReal = typeof servicioId === 'object' && servicioId !== null ? servicioId.id : servicioId
-    
-    setServicioModal(idReal)
-    iniciarReserva(fechaSeleccionada, idReal)
+  // Cuando el socio cambia de actividad DENTRO del modal (ej: pasa de
+  // Gimnasio a Pilates), volvemos a buscar los turnos de ese mismo día
+  // pero para la nueva actividad elegida.
+  function cambiarServicioModal(servicioId) {
+    setServicioModal(servicioId)
+    iniciarReserva(fechaSeleccionada, servicioId)
   }
 
+  // Función para confirmar la reserva desde el Modal interactivo conectada a Supabase
   async function reservarDesdeModal(horarioId) {
     setMensaje('')
     
@@ -263,7 +249,7 @@ function cambiarServicioModal(servicioId) {
       return
     }
 
-    window.location.href = data.url 
+    window.location.href = data.url // manda al socio a pagar a Mercado Pago
   }
 
   const tieneGimnasio = misServicios.some((s) => s.nombre === 'Gimnasio')
@@ -291,18 +277,6 @@ function cambiarServicioModal(servicioId) {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
         
-        {/* ------------------ ANUNCIOS ------------------ */}
-        {anuncios.length > 0 && (
-          <div className="flex flex-col gap-2">
-            {anuncios.map((a) => (
-              <div key={a.id} className="bg-brand-light border border-brand/30 rounded-xl p-4 text-sm text-ink flex gap-2 items-start">
-                <span>📣</span>
-                <span>{a.mensaje}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* ------------------ CUOTA ------------------ */}
         <Card>
           <Eyebrow>Cuota</Eyebrow>
@@ -336,98 +310,158 @@ function cambiarServicioModal(servicioId) {
             {rutina && ejercicios.length === 0 && (
               <p className="text-sm text-concrete">Tu rutina "{rutina.nombre}" todavía no tiene ejercicios cargados.</p>
             )}
-            {rutina && ejercicios.length > 0 && (
-              <div>
-                <p className="text-sm text-concrete mb-5">{rutina.nombre}</p>
-                <div className="flex flex-col gap-7">
-                  {DIAS_ORDEN.filter((dia) => agruparPorDia(ejercicios)[dia]).map((dia) => {
-                    const porBloque = agruparPorBloque(agruparPorDia(ejercicios)[dia])
-                    return (
-                      <div key={dia}>
-                        <div className="flex items-center gap-3 mb-3">
-                          <span className="font-display font-semibold text-sm uppercase tracking-wide text-ink">
-                            {dia}
-                          </span>
-                          <div className="h-px flex-1 bg-gray-200" />
-                        </div>
+            {rutina && ejercicios.length > 0 && (() => {
+              // Agrupamos una sola vez y decidimos, según el toggle
+              // "Hoy" / "Semana completa", qué días efectivamente
+              // vamos a pintar en la tabla de abajo.
+              const gruposPorDia = agruparPorDia(ejercicios)
+              const diasConEjercicios = DIAS_ORDEN.filter((dia) => gruposPorDia[dia])
+              const hayRutinaHoy = Boolean(gruposPorDia[diaDeHoy])
+              const diasAMostrar = verSemanaCompleta
+                ? diasConEjercicios
+                : (hayRutinaHoy ? [diaDeHoy] : [])
 
-                        <div className="flex flex-col gap-4">
-                          {BLOQUES_ORDEN.filter((b) => porBloque[b]).map((bloque) => {
-                            const info = BLOQUES_INFO[bloque]
-                            return (
-                              <div key={bloque} className="rounded-xl border border-gray-100 overflow-hidden">
-                                <div
-                                  className="flex items-center gap-2 px-4 py-2"
-                                  style={{ backgroundColor: info.color }}
-                                >
-                                  <span className="font-mono text-[11px] font-semibold uppercase tracking-widest text-white">
-                                    {info.label}
-                                  </span>
-                                </div>
+              return (
+                <div>
+                  <div className="flex justify-between items-center flex-wrap gap-3 mb-5">
+                    <p className="text-sm text-concrete">{rutina.nombre}</p>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => setVerSemanaCompleta(false)}
+                        className={`text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border transition ${
+                          !verSemanaCompleta
+                            ? 'bg-ink text-white border-ink'
+                            : 'bg-white text-concrete border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        Hoy
+                      </button>
+                      <button
+                        onClick={() => setVerSemanaCompleta(true)}
+                        className={`text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border transition ${
+                          verSemanaCompleta
+                            ? 'bg-ink text-white border-ink'
+                            : 'bg-white text-concrete border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        Semana completa
+                      </button>
+                    </div>
+                  </div>
 
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-sm border-collapse">
-                                    <thead>
-                                      <tr className="bg-gray-50">
-                                        <th className="text-left font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-4 py-2 border-b border-gray-200">
-                                          Ejercicio
-                                        </th>
-                                        <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-16">
-                                          Series
-                                        </th>
-                                        <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-20">
-                                          Reps
-                                        </th>
-                                        <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-24">
-                                          Peso
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {porBloque[bloque].map((e, i) => (
-                                        <tr key={e.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
-                                          <td className="px-4 py-2.5 border-b border-gray-100 font-medium text-ink">
-                                            {e.nombre}
-                                          </td>
-                                          <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono font-semibold text-ink">
-                                            {e.series}
-                                          </td>
-                                          <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono font-semibold text-ink">
-                                            {e.repeticiones}
-                                          </td>
-                                          <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono text-concrete">
-                                            {e.peso_sugerido || '—'}
-                                          </td>
+                  {!verSemanaCompleta && !hayRutinaHoy && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5 text-sm text-concrete">
+                      Hoy no tenés ejercicios cargados para tu rutina.
+                      {diasConEjercicios.length > 0 && (
+                        <>
+                          {' '}Tu rutina tiene días cargados para:{' '}
+                          <strong className="text-ink capitalize">{diasConEjercicios.join(', ')}</strong>.{' '}
+                          <button
+                            onClick={() => setVerSemanaCompleta(true)}
+                            className="text-brand font-semibold hover:underline"
+                          >
+                            Ver semana completa
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-7">
+                    {diasAMostrar.map((dia) => {
+                      const porBloque = agruparPorBloque(gruposPorDia[dia])
+                      return (
+                        <div key={dia}>
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="font-display font-semibold text-sm uppercase tracking-wide text-ink flex items-center gap-2">
+                              {dia}
+                              {dia === diaDeHoy && (
+                                <span className="text-[10px] font-mono bg-brand text-white px-2 py-0.5 rounded-full normal-case tracking-normal">
+                                  Hoy
+                                </span>
+                              )}
+                            </span>
+                            <div className="h-px flex-1 bg-gray-200" />
+                          </div>
+
+                          <div className="flex flex-col gap-4">
+                            {BLOQUES_ORDEN.filter((b) => porBloque[b]).map((bloque) => {
+                              const info = BLOQUES_INFO[bloque]
+                              return (
+                                <div key={bloque} className="rounded-xl border border-gray-100 overflow-hidden">
+                                  <div
+                                    className="flex items-center gap-2 px-4 py-2"
+                                    style={{ backgroundColor: info.color }}
+                                  >
+                                    <span className="font-mono text-[11px] font-semibold uppercase tracking-widest text-white">
+                                      {info.label}
+                                    </span>
+                                  </div>
+
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-sm border-collapse">
+                                      <thead>
+                                        <tr className="bg-gray-50">
+                                          <th className="text-left font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-4 py-2 border-b border-gray-200">
+                                            Ejercicio
+                                          </th>
+                                          <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-16">
+                                            Series
+                                          </th>
+                                          <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-20">
+                                            Reps
+                                          </th>
+                                          <th className="text-center font-mono text-[10px] uppercase tracking-wide text-gray-500 font-semibold px-3 py-2 border-b border-l border-gray-200 w-24">
+                                            Peso
+                                          </th>
                                         </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                                      </thead>
+                                      <tbody>
+                                        {porBloque[bloque].map((e, i) => (
+                                          <tr key={e.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
+                                            <td className="px-4 py-2.5 border-b border-gray-100 font-medium text-ink">
+                                              {e.nombre}
+                                            </td>
+                                            <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono font-semibold text-ink">
+                                              {e.series}
+                                            </td>
+                                            <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono font-semibold text-ink">
+                                              {e.repeticiones}
+                                            </td>
+                                            <td className="px-3 py-2.5 border-b border-l border-gray-100 text-center font-mono text-concrete">
+                                              {e.peso_sugerido || '—'}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
                                 </div>
-                              </div>
-                            )
-                          })}
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </Card>
         )}
 
-        {/* ------------------ CALENDARIO INTERACTIVO ------------------ */}
+        {/* ------------------ CALENDARIO INTERACTIVO RESTAURADO ------------------ */}
         <Card>
           <Eyebrow>Elige un día</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
             Reservar nuevo turno
           </h2>
           
-        <div className="flex justify-center p-4">
+          <div className="flex justify-center p-4">
             <Calendar 
               onChange={setFechaSeleccionada} 
               value={fechaSeleccionada}
-              onClickDay={(fecha) => iniciarReserva(fecha)}
+              onClickDay={iniciarReserva}
               minDate={new Date()} 
               locale="es-AR"
               className="border-0 shadow-sm rounded-lg"
@@ -435,7 +469,7 @@ function cambiarServicioModal(servicioId) {
           </div>
         </Card>
 
-        {/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
+{/* ------------------ MIS TURNOS RESERVADOS ------------------ */}
         <Card>
           <Eyebrow>Tu agenda</Eyebrow>
           <h2 className="font-display font-semibold text-xl uppercase tracking-wide mb-4 text-black">
@@ -449,6 +483,7 @@ function cambiarServicioModal(servicioId) {
           )}
 
           {misReservas.map((r) => {
+            // Formateamos la fecha de manera limpia y compacta (Ej: "lun. 14/9")
             const fechaFormateada = r.fecha 
               ? new Date(`${r.fecha}T00:00:00`).toLocaleDateString('es-AR', {
                   weekday: 'short',
@@ -484,7 +519,7 @@ function cambiarServicioModal(servicioId) {
         </Card>
       </div>
 
-      {/* ------------------ MODAL FLOTANTE DE HORARIOS (ACTUALIZADO) ------------------ */}
+      {/* ------------------ MODAL FLOTANTE DE HORARIOS ------------------ */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
@@ -498,19 +533,19 @@ function cambiarServicioModal(servicioId) {
 
             {misServicios.length > 1 && (
               <div className="flex gap-2 mb-4">
-{misServicios.map((s) => (
-  <button
-    key={s.id}
-    onClick={() => cambiarServicioModal(s.id)} // <--- Asegúrate de que mande s.id y no sólo s
-    className={`text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border-2 transition ${
-      servicioModal === s.id
-        ? 'bg-black text-white border-black'
-        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-    }`}
-  >
-    {s.nombre}
-  </button>
-))}
+                {misServicios.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => cambiarServicioModal(s.id)}
+                    className={`text-xs font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border-2 transition ${
+                      servicioModal === s.id
+                        ? 'bg-black text-white border-black'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    {s.nombre}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -518,65 +553,46 @@ function cambiarServicioModal(servicioId) {
               <p className="text-sm text-gray-500 text-center py-4">No tenés ningún plan asignado todavía.</p>
             )}
 
-            {/* AVISO DE CUOTA PENDIENTE */}
-            {miPago === false ? (
-              <div className="flex flex-col items-center justify-center py-6 text-center bg-red-50 border border-red-100 rounded-lg mb-4">
-                <span className="text-2xl mb-2">🚫</span>
-                <p className="text-red-600 font-bold mb-1">Cuota pendiente</p>
-                <p className="text-sm text-gray-700 mb-4 px-2">
-                  Para poder reservar turnos en esta fecha, necesitás tener tu cuota mensual al día.
-                </p>
-                <Button 
-                  variant="primary" 
-                  onClick={pagarCuota} 
-                  disabled={generandoLinkDePago}
-                  className="text-xs uppercase tracking-wide"
-                >
-                  {generandoLinkDePago ? 'Generando link...' : 'Pagar cuota ahora'}
-                </Button>
-              </div>
-            ) : (
-              // RESULTADOS DE TURNOS
-              <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
-                {cargandoModal ? (
-                  <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
-                ) : turnosDisponibles.length === 0 && !proximoDisponibleModal ? (
-                  <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
-                ) : (
-                  turnosDisponibles.map((turno) => {
-                    const servicioDelTurno = todosLosServicios.find((s) => s.id === turno.servicio_id);
-                    const nombreActividad = servicioDelTurno ? servicioDelTurno.nombre : 'Gimnasio';
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
+              {cargandoModal ? (
+                <p className="text-sm text-gray-500 text-center py-4">Buscando horarios disponibles...</p>
+              ) : turnosDisponibles.length === 0 && !proximoDisponibleModal ? (
+                <p className="text-sm text-gray-500 text-center py-4">No hay turnos disponibles para esta fecha.</p>
+              ) : (
+                turnosDisponibles.map((turno) => {
+                  // Buscamos el nombre real de la actividad comparando los IDs
+                  const servicioDelTurno = todosLosServicios.find((s) => s.id === turno.servicio_id);
+                  const nombreActividad = servicioDelTurno ? servicioDelTurno.nombre : 'Gimnasio';
 
-                    return (
-                      <div 
-                        key={turno.id} 
-                        className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
-                      >
-                        <div>
-                          <span className="block text-xs font-bold text-red-600 uppercase">
-                            {nombreActividad}
-                          </span>
-                          <span className="text-sm font-mono text-gray-800">
-                            {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
-                          </span>
-                        </div>
-                        
-                        <Button 
-                          variant="primary"
-                          className="text-sm uppercase tracking-wide"
-                          onClick={() => reservarDesdeModal(turno.id)}
-                        >
-                          Reservar
-                        </Button>
+                  return (
+                    <div 
+                      key={turno.id} 
+                      className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-red-600 transition-colors"
+                    >
+                      <div>
+                        {/* Imprimimos el nombre dinámico que acabamos de evaluar */}
+                        <span className="block text-xs font-bold text-red-600 uppercase">
+                          {nombreActividad}
+                        </span>
+                        <span className="text-sm font-mono text-gray-800">
+                          {turno.hora_inicio.slice(0, 5)} a {turno.hora_fin.slice(0, 5)}
+                        </span>
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
+                      
+                      <Button 
+                        variant="primary"
+                        className="text-sm uppercase tracking-wide"
+                        onClick={() => reservarDesdeModal(turno.id)}
+                      >
+                        Reservar
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
 
-            {/* AVISO DE PRÓXIMO TURNO DISPONIBLE */}
-            {miPago !== false && !cargandoModal && proximoDisponibleModal && (
+            {!cargandoModal && proximoDisponibleModal && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm">
                 <p className="text-gray-700 mb-2">
                   No hay lugar ese día. El próximo turno con cupo es el{' '}
@@ -593,7 +609,7 @@ function cambiarServicioModal(servicioId) {
               </div>
             )}
 
-            <div className="flex justify-end mt-2">
+            <div className="flex justify-end">
               <Button 
                 variant="secondary" 
                 onClick={() => setIsModalOpen(false)}

@@ -122,6 +122,8 @@ export default function Admin({ usuario }) {
             ))}
         </Card>
       </div>
+
+      {/* COMPONENTE DE BOTÓN FLOTANTE INTEGRADO */}
     </div>
   )
 }
